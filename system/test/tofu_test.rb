@@ -6,7 +6,7 @@ require File.dirname(__FILE__) + '/../tofu'
 
 Tofu.create
 
-class TestTofu < Camping::UnitTest
+class TofuTest < Camping::UnitTest
   include Tofu::Models
 
   context "Tofu module" do
@@ -31,7 +31,7 @@ class TestTofu < Camping::UnitTest
   end
 end
 
-class TestBlock < Camping::UnitTest
+class BlockTest < Camping::UnitTest
   include Tofu::Models
   
   context "a new block" do
