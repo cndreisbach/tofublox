@@ -7,51 +7,54 @@ require 'reststop'
 Camping.goes :Tofu
 
 module Tofu
-  @block_definitions = {
-    'Post' => {
-      :title => :string,
-      :body => :text
-    }
-  }
+  DIR = File.dirname(__FILE__) unless defined?(DIR)
+  
+  @molds = { }
 
-  def self.block_definitions
-    @block_definitions
+  def self.molds
+    @molds
   end
 
-  def self.blocks
-    @block_definitions.keys.map { |name| name.to_s.capitalize }
+  def self.mold_names
+    @molds.keys
   end
 
-  def self.definitions_text(definitions)
-    definitions.map { |definition| definition_text(*definition) }.join("\n")
+  def self.mold_text(mold)
+    mold.map { |field| field_text(*field) }.join("\n")
   end
 
   def self.create
     Tofu::Models.create_schema
 
-    Tofu.block_definitions.each do |name, definitions|
-      class_def = <<EOF
+    Tofu.load_molds
+
+    Tofu.molds.each do |name, mold|
+      Tofu::Models.module_eval(%Q{
       class #{name} < Block
-        #{Tofu.definitions_text(definitions)}
-      end
-EOF
-      p class_def
-      Tofu::Models.module_eval(class_def)
+        #{Tofu.mold_text(mold)}
+      end})
     end
   end
 
   private
-  
-  def self.definition_text(name, type)
-    return "
-def #{name}
-  content[#{name.to_s.inspect}]
-end
 
-def #{name}=(value)
-  content[#{name.to_s.inspect}] = value
-end
-"
+  def self.load_molds
+    Dir["#{DIR}/molds/*.yaml"].each do |yaml_file|
+      @molds[File.basename(yaml_file, '.yaml').capitalize] = \
+        YAML::load(File.read(yaml_file))
+    end
+  end
+  
+  def self.field_text(name, type)
+    %Q(
+      def #{name}
+        content[#{name.to_s.inspect}]
+      end
+
+      def #{name}=(value)
+        content[#{name.to_s.inspect}] = value
+      end
+    )
   end
 end
 
