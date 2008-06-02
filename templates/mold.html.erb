@@ -1,6 +1,6 @@
 <h2>New <%= @name  %></h2>
 
-<%= form :action => R(BlockList) do
+<%= form :action => R(BlockList), :method => 'POST' do
       input :type => 'hidden', :name => "block[type]", :value => @name 
       @mold.each do |field, type|
         div do

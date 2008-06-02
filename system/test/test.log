@@ -1,0 +1,131 @@
+# Logfile created on Mon Jun 02 06:34:24 -0400 2008 by /
+  [4;36;1mSQL (0.001315)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000900)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.002160)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000507)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001026)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000555)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001448)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.001407)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001671)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000518)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001083)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000560)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001330)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000944)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001648)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000535)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001013)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000601)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001330)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000948)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001654)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000632)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001032)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.001015)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001204)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;36;1mSQL (0.001306)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000919)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001680)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000511)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001505)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000580)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001297)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000926)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001660)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000504)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001109)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000549)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001298)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000925)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001602)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000511)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001009)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000575)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001454)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000920)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001792)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000503)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001032)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000562)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001339)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000899)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001606)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000491)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001000)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000544)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001322)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000900)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001670)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000502)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001021)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000602)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001292)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000898)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001612)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000506)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001013)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000574)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001336)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000924)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001813)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000503)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001062)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000564)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001331)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.000979)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001618)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000544)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001010)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000615)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m
+  [4;36;1mSQL (0.001306)[0m   [0;1m SELECT name
+ FROM sqlite_master
+ WHERE type = 'table' AND NOT name = 'sqlite_sequence'
+[0m
+  [4;35;1mSQL (0.001412)[0m   [0mselect sqlite_version(*)[0m
+  [4;36;1mSQL (0.001646)[0m   [0;1mCREATE TABLE "tofu_schema_infos" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "version" float DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Load (0.000508)[0m   [0mSELECT * FROM "tofu_schema_infos" LIMIT 1[0m
+  [4;36;1mSQL (0.001029)[0m   [0;1mCREATE TABLE "tofu_blocks" ("id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "content" text NOT NULL, "type" varchar(255) NOT NULL, "created_at" datetime DEFAULT NULL NULL, "updated_at" datetime DEFAULT NULL NULL) [0m
+  [4;35;1mTofu::Models::SchemaInfo Create (0.000587)[0m   [0mINSERT INTO "tofu_schema_infos" ("version") VALUES(1.0)[0m

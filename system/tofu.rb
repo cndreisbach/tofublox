@@ -1,21 +1,17 @@
 #!/usr/bin/env ruby
+$:.push(File.dirname(__FILE__))
 
 require 'rubygems'
 require 'camping'
 
-unless defined? ERB
-  begin
-    require 'erubis'
-    ERB = Erubis::Eruby
-  rescue
-    require 'erb'
-  end
-end
-
 Camping.goes :Tofu
 
+require 'tofu/models'
+require 'tofu/controllers'
+require 'tofu/helpers'
+
 module Tofu
-  include Tofu::Controllers
+  include Controllers
   
   DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)
   
@@ -34,16 +30,8 @@ module Tofu
   end
 
   def self.create
-    Tofu::Models.create_schema
-
-    Tofu.load_molds
-
-    Tofu.molds.each do |name, mold|
-      Tofu::Models.module_eval(%Q{
-      class #{name} < Block
-        #{Tofu.mold_text(mold)}
-      end})
-    end
+    Models.create_schema
+    load_molds
   end
 
   def render(m, layout=true)
@@ -52,12 +40,22 @@ module Tofu
     return content
   end
 
+  def self.make_new_mold(name, hash)
+    @molds[name] = hash
+
+    Models.module_eval(%Q{
+      class #{name} < Block
+        #{Tofu.mold_text(@molds[name])}
+      end}
+    )
+  end
+
   private
 
   def self.load_molds
-    Dir["#{DIR}/molds/*.yaml"].each do |yaml_file|
-      @molds[File.basename(yaml_file, '.yaml').capitalize] = \
-        YAML::load(File.read(yaml_file))
+    Dir["#{DIR}/molds/*.yaml"].each do |file|
+      make_new_mold(File.basename(file, '.yaml').capitalize,
+                    YAML::load(File.read(file)))
     end
   end
   
@@ -71,67 +69,5 @@ module Tofu
         content[#{name.to_s.inspect}] = value
       end
     )
-  end
-end
-
-module Tofu::Models
-  class Block < Base
-    attr_accessor :content
-    serialize :content
-
-    def content
-      write_attribute(:content, Hash.new) if read_attribute(:content).nil?
-      read_attribute(:content)
-    end
-  end
-  
-  class InitialDB < V 1.0
-    def self.up
-      create_table :tofu_blocks do |t|
-        t.text :content, :null => false
-        t.string :type, :null => false
-        t.timestamps
-      end
-    end
-  end
-end
-
-module Tofu::Controllers
-  class MoldList < R '/molds'
-    def get
-      @molds = Tofu.mold_names
-      render :mold_list
-    end
-  end
-
-  class Mold < R '/molds/(\w+)'
-    def get(id)
-      @name = id
-      @mold = Tofu.molds[id]
-      render :mold
-    end
-  end
-
-  class BlockList < R '/'
-    def get
-      @blocks = Block.find(:all)
-      render :block_list
-    end
-
-    # create a block
-    def post
-      
-    end
-  end
-end
-
-module Tofu::Helpers
-  def form_field(datatype, options)
-    case datatype
-    when 'string':
-        input options.merge(:type => 'text')
-    when 'text':
-        textarea options[:value], options.delete(:name)
-    end
   end
 end
