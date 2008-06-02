@@ -1,0 +1,8 @@
+<h1>Molds</h1>
+<ul>
+  <% @molds.each do |mold| %>
+    <li>
+      <%= a mold, :href => R(Tofu::Controllers::Mold, mold) %>
+    </li>
+  <% end %>
+</ul>

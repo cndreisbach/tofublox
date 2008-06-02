@@ -3,10 +3,21 @@
 require 'rubygems'
 require 'camping'
 
+unless defined? ERB
+  begin
+    require 'erubis'
+    ERB = Erubis::Eruby
+  rescue
+    require 'erb'
+  end
+end
+
 Camping.goes :Tofu
 
 module Tofu
-  DIR = File.dirname(__FILE__) unless defined?(DIR)
+  include Tofu::Controllers
+  
+  DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)
   
   @molds = { }
 
@@ -33,6 +44,12 @@ module Tofu
         #{Tofu.mold_text(mold)}
       end})
     end
+  end
+
+  def render(m, layout=true)
+    content = ERB.new(IO.read("#{DIR}/templates/#{m}.html.erb")).result(binding)
+    content = ERB.new(IO.read("#{DIR}/templates/layout.html.erb")).result(binding) if layout
+    return content
   end
 
   private
@@ -89,6 +106,9 @@ module Tofu::Controllers
 
   class Mold < R '/molds/(\w+)'
     def get(id)
+      @name = id
+      @mold = Tofu.molds[id]
+      render :mold
     end
   end
 
@@ -103,39 +123,15 @@ module Tofu::Controllers
       
     end
   end
-
-  class Block
-  end
 end
 
-module Tofu::Views  
-  def layout
-    html do
-      head do
-        title 'tofu'
-      end
-      body do
-        self << yield
-      end
-    end
-  end
-    
-  def block_list
-    @blocks.each do |block|
-      div :class => 'block' do
-        block.content
-      end
-    end
-  end
-
-  def mold_list
-    h1 "Molds"
-    ul do
-      @molds.each do |mold|
-        li do
-          a(mold, :href => R(Mold, mold))
-        end
-      end
+module Tofu::Helpers
+  def form_field(datatype, options)
+    case datatype
+    when 'string':
+        input options.merge(:type => 'text')
+    when 'text':
+        textarea options[:value], options.delete(:name)
     end
   end
 end
