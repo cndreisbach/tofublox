@@ -2,7 +2,6 @@
 
 require 'rubygems'
 require 'camping'
-require 'reststop'
 
 Camping.goes :Tofu
 
@@ -81,80 +80,62 @@ module Tofu::Models
 end
 
 module Tofu::Controllers
-  class Molds < REST 'molds'
-    def list
-      @blocks = Tofu.blocks
-      render :molds_list
+  class MoldList < R '/molds'
+    def get
+      @molds = Tofu.mold_names
+      render :mold_list
+    end
+  end
+
+  class Mold < R '/molds/(\w+)'
+    def get(id)
+    end
+  end
+
+  class BlockList < R '/'
+    def get
+      @blocks = Block.find(:all)
+      render :block_list
     end
 
-    def read(id)
+    # create a block
+    def post
       
     end
   end
 
-  class Blocks < REST ''
-    # GET /
-    def list
-      @blocks = Block.find(:all)
-      render :list
-    end
-
-    # GET /:id
-    def read(id)
-      
-    end
-
-    # POST /:id
-    def create
-      
-    end
-
-    # PUT /:id
-    def update(id)
-      
-    end
-
-    # DELETE /:id
-    def destroy(id)
-      
-    end
+  class Block
   end
 end
 
-module Tofu::Views
-  module HTML
-    include Tofu::Controllers
-    
-    def layout
-      html do
-        head do
-          title 'tofu'
-        end
-        body do
-          self << yield
-        end
+module Tofu::Views  
+  def layout
+    html do
+      head do
+        title 'tofu'
+      end
+      body do
+        self << yield
       end
     end
+  end
     
-    def list
-      @blocks.each do |block|
-        div :class => 'block' do
-          block.content
-        end
-      end
-    end
-
-    def molds_list
-      h1 "Molds"
-      ul do
-        @blocks.each do |block|
-          li do
-            a(:href => R(Molds, block)) { block }
-          end
-        end
+  def block_list
+    @blocks.each do |block|
+      div :class => 'block' do
+        block.content
       end
     end
   end
 
-  default_format :HTML
+  def mold_list
+    h1 "Molds"
+    ul do
+      @molds.each do |mold|
+        li do
+          a(mold, :href => R(Mold, mold))
+        end
+      end
+    end
+  end
 end
