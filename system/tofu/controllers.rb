@@ -2,7 +2,7 @@ module Tofu::Controllers
   class MoldList < R '/molds'
     def get
       @molds = Tofu.mold_names
-      render :mold_list
+      render :mold_list, :app
     end
   end
 
@@ -10,14 +10,14 @@ module Tofu::Controllers
     def get(id)
       @name = id
       @mold = Tofu.molds[id]
-      render :mold
+      render :mold, :app
     end
   end
 
   class BlockList < R '/'
     def get
-      @blocks = Block.find(:all)
-      render :block_list
+      @blocks = Block.find(:all, :order => 'created_at DESC')
+      render :block_list, :app
     end
 
     # create a block

@@ -34,9 +34,17 @@ module Tofu
     load_molds
   end
 
-  def render(m, layout=true)
-    content = ERB.new(IO.read("#{DIR}/templates/#{m}.html.erb")).result(binding)
-    content = ERB.new(IO.read("#{DIR}/templates/layout.html.erb")).result(binding) if layout
+  def render(file, layout = nil)
+    content = ERB.new(IO.read("#{DIR}/templates/#{file}.html.erb")).result(binding)
+    if layout
+      content = ERB.new(IO.read("#{DIR}/templates/layouts/#{layout}.html.erb")).result(binding)
+    end
+    return content
+  end
+
+  def render_block(block)
+    filename = block.read_attribute(:type).downcase
+    content = ERB.new(IO.read("#{DIR}/molds/#{filename}.html.erb")).result(binding)
     return content
   end
 

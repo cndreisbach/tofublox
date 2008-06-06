@@ -2,7 +2,7 @@ unless defined? ERB
   begin
     require 'erubis'
     ERB = Erubis::Eruby
-  rescue
+  rescue MissingSourceFile
     require 'erb'
   end
 end
