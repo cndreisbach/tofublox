@@ -1,0 +1,3 @@
+[submodule "vendor/camping"]
+	path = vendor/camping
+	url = git://github.com/why/camping.git
