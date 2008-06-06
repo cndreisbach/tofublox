@@ -1,0 +1,12 @@
+Required gems:
+camping
+
+Recommended gems:
+mongrel
+rack
+erubis
+
+Gems for testing:
+spect
+Shoulda
+mosquito
