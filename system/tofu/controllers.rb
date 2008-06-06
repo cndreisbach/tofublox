@@ -1,4 +1,19 @@
+require 'mime/types'
+
 module Tofu::Controllers
+  class Static < R('/(css/.+)')
+    def get(file)
+      if file.include? '..'
+        @status = '403'
+        return '403 - Invalid path'
+      else
+        type = (MIME::Types.type_for(file)[0] || 'text/plain').to_s
+        @headers['Content-Type'] = type
+        @headers['X-Sendfile'] = File.join Tofu.dir, 'public', file
+      end
+    end
+  end
+  
   class MoldList < R '/molds'
     def get
       @molds = Tofu.mold_names

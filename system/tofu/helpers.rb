@@ -8,12 +8,28 @@ unless defined? ERB
 end
 
 module Tofu::Helpers
+  include Tofu::Controllers
+  
   def form_field(datatype, options)
     case datatype
-    when 'text':
-        textarea(:name => options[:name]) { options[:value] }
-    else
-      input options.merge(:type => 'text')
+    when 'text' then textarea(:name => options[:name]) { options[:value] }
+    else input options.merge(:type => 'text')
     end
+  end
+
+  def render_layout(layout, content)
+    ERB.new(IO.read("#{Tofu.dir}/templates/layouts/#{layout}.html.erb")).result(binding)
+  end
+
+  def render_block(block)
+    filename = block.read_attribute(:type).downcase
+    content = ERB.new(IO.read("#{Tofu.dir}/molds/#{filename}.html.erb")).result(binding)
+    return content
+  end
+
+  def render(file, layout = nil)
+    content = ERB.new(IO.read("#{Tofu.dir}/templates/#{file}.html.erb")).result(binding)
+    content = render_layout(layout, content) if layout
+    return content
   end
 end

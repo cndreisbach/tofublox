@@ -11,9 +11,11 @@ require 'tofu/controllers'
 require 'tofu/helpers'
 
 module Tofu
-  include Controllers
-  
-  DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)
+  DIR = File.dirname(__FILE__) + '/..' unless defined?(DIR)
+
+  def self.dir
+    DIR
+  end
   
   @molds = { }
 
@@ -34,29 +36,13 @@ module Tofu
     load_molds
   end
 
-  def render(file, layout = nil)
-    content = ERB.new(IO.read("#{DIR}/templates/#{file}.html.erb")).result(binding)
-    content = render_layout(layout, content) if layout
-    return content
-  end
-
-  def render_layout(layout, content)
-    ERB.new(IO.read("#{DIR}/templates/layouts/#{layout}.html.erb")).result(binding)
-  end
-
-  def render_block(block)
-    filename = block.read_attribute(:type).downcase
-    content = ERB.new(IO.read("#{DIR}/molds/#{filename}.html.erb")).result(binding)
-    return content
-  end
-
   def self.make_new_mold(name, hash)
     @molds[name] = hash
 
-    Models.module_eval(%Q{
+    Models.module_eval("
       class #{name} < Block
         #{Tofu.mold_text(@molds[name])}
-      end}
+      end"
     )
   end
 
@@ -70,7 +56,7 @@ module Tofu
   end
   
   def self.field_text(name, type)
-    %Q(
+    "
       def #{name}
         content[#{name.to_s.inspect}]
       end
@@ -78,6 +64,26 @@ module Tofu
       def #{name}=(value)
         content[#{name.to_s.inspect}] = value
       end
-    )
+    "
   end
+end
+
+if __FILE__ == $0
+  Tofu::Models::Base.establish_connection(:adapter => 'sqlite3',
+                                          :database => 'tofu.db')
+  Tofu::Models::Base.logger = Logger.new('tofu.log')
+  Tofu.create
+  
+  require 'mongrel'
+  require 'rack/adapter/camping'
+  require 'rack/handler/mongrel'
+  app = Rack::Adapter::Camping.new(Tofu) do
+    use Rack::CommonLogger
+    use Rack::ShowExceptions
+    use Rack::ShowStatus
+    use Rack::Lint
+    Tofu.run
+  end
+  
+  Rack::Handler::Mongrel.run app, :Port => 3301
 end
