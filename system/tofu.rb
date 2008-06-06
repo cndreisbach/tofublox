@@ -36,10 +36,12 @@ module Tofu
 
   def render(file, layout = nil)
     content = ERB.new(IO.read("#{DIR}/templates/#{file}.html.erb")).result(binding)
-    if layout
-      content = ERB.new(IO.read("#{DIR}/templates/layouts/#{layout}.html.erb")).result(binding)
-    end
+    content = render_layout(layout, content) if layout
     return content
+  end
+
+  def render_layout(layout, content)
+    ERB.new(IO.read("#{DIR}/templates/layouts/#{layout}.html.erb")).result(binding)
   end
 
   def render_block(block)
