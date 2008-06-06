@@ -6,7 +6,8 @@ mongrel
 rack
 erubis
 
-Gems for testing:
+Gems for working on tofu:
+ditz
 spect
 Shoulda
 mosquito
