@@ -67,23 +67,3 @@ module Tofu
     "
   end
 end
-
-if __FILE__ == $0
-  Tofu::Models::Base.establish_connection(:adapter => 'sqlite3',
-                                          :database => 'tofu.db')
-  Tofu::Models::Base.logger = Logger.new('tofu.log')
-  Tofu.create
-  
-  require 'mongrel'
-  require 'rack/adapter/camping'
-  require 'rack/handler/mongrel'
-  app = Rack::Adapter::Camping.new(Tofu) do
-    use Rack::CommonLogger
-    use Rack::ShowExceptions
-    use Rack::ShowStatus
-    use Rack::Lint
-    Tofu.run
-  end
-  
-  Rack::Handler::Mongrel.run app, :Port => 3301
-end

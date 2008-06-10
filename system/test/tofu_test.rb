@@ -1,7 +1,6 @@
 require 'rubygems'
 require 'mosquito'
-require 'spect'
-require 'shoulda'
+require 'mysticize'
 require File.dirname(__FILE__) + '/../tofu'
 
 Tofu.create

@@ -1,2 +1,3 @@
 *.log
 *.db
+tofu.sqlite3
