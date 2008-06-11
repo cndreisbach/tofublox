@@ -2,7 +2,7 @@
 <ul>
   <% @molds.each do |mold| %>
     <li>
-      <%= a mold, :href => R(Tofu::Controllers::Mold, mold) %>
+      <%= a mold.name, :href => R(MoldController, mold.name) %>
     </li>
   <% end %>
 </ul>

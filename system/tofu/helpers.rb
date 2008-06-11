@@ -22,8 +22,7 @@ module Tofu::Helpers
   end
 
   def render_block(block)
-    filename = block.read_attribute(:type).downcase
-    content = ERB.new(IO.read("#{Tofu.dir}/molds/#{filename}.html.erb")).result(binding)
+    content = ERB.new(block.mold.template).result(binding)
     return content
   end
 

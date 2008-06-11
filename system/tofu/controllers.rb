@@ -1,7 +1,7 @@
 require 'mime/types'
 
 module Tofu::Controllers
-  class Static < R('/(css/.+)')
+  class StaticController < R('/(css/.+)')
     def get(file)
       if file.include? '..'
         @status = '403'
@@ -14,33 +14,29 @@ module Tofu::Controllers
     end
   end
   
-  class MoldList < R '/molds'
+  class MoldListController < R '/molds'
     def get
-      @molds = Tofu.mold_names
+      @molds = Mold.find(:all, '*')
       render :mold_list, :app
     end
   end
 
-  class Mold < R '/molds/(\w+)'
+  class MoldController < R '/molds/(\w+)'
     def get(id)
-      @name = id
-      @mold = Tofu.molds[id]
+      @mold = Mold.find(id)
       render :mold, :app
     end
   end
 
-  class BlockList < R '/'
+  class BlockListController < R '/'
     def get
-      @blocks = Block.find(:all, :order => 'created_at DESC')
+      @blocks = Block.find(:all)
       render :block_list, :app
     end
 
     # create a block
     def post
-      @block = "Tofu::Models::#{input['block']['type']}".constantize.new
-      input['block'].each do |key, value|
-        @block.send("#{key}=", value)
-      end
+      @block = Block.new('a', input['block'].delete('type'), input['block'])
       @block.save
     end
   end

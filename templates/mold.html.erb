@@ -1,8 +1,8 @@
-<h2>New <%= @name  %></h2>
+<h2>New <%= @mold %></h2>
 
-<%= form :action => R(BlockList), :method => 'POST' do
-      input :type => 'hidden', :name => "block[type]", :value => @name 
-      @mold.each do |field, type|
+<%= form :action => R(BlockListController), :method => 'POST' do
+      input :type => 'hidden', :name => "block[type]", :value => @mold.name 
+      @mold.fields.each do |field, type|
         div do
           label field.to_s.capitalize, :for => "block[#{field}]"
           form_field type, :name => "block[#{field}]"

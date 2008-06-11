@@ -1,0 +1,10 @@
+--- 
+:template: |
+  <h1><%= block.Title %></h1>
+  <div>
+    <%= block.Body %>
+  </div>
+
+:fields: 
+  Body: text
+  Title: string
