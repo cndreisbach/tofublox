@@ -1,0 +1,3 @@
+[submodule "system/vendor/active_files"]
+	path = system/vendor/active_files
+	url = git@github.com:crnixon/active_files.git
