@@ -18,7 +18,7 @@ module Tofu::Helpers
   end
 
   def render_layout(layout, content)
-    ERB.new(IO.read("#{Tofu.dir}/templates/layouts/#{layout}.html.erb")).result(binding)
+    ERB.new(IO.read("#{Tofu.template_dir}/layouts/#{layout}.html.erb")).result(binding)
   end
 
   def render_block(block)
@@ -27,7 +27,7 @@ module Tofu::Helpers
   end
 
   def render(file, layout = nil)
-    content = ERB.new(IO.read("#{Tofu.dir}/templates/#{file}.html.erb")).result(binding)
+    content = ERB.new(IO.read("#{Tofu.template_dir}/#{file}.html.erb")).result(binding)
     content = render_layout(layout, content) if layout
     return content
   end
