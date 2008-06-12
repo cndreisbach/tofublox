@@ -18,13 +18,23 @@ module Tofu::Models
     add_file_id_to_initialize
 
     def to_activefile
-      { :fields => @fields,
-        :template => @template }.to_yaml
+      [@fields.to_yaml, @template].join("--- \n")
     end
 
     def self.from_activefile(yaml, file_id)
-      hash = YAML::load(yaml)
-      Mold.new(file_id, hash[:fields], hash[:template])
+      fields, template = nil
+
+      YAML::load_documents(yaml) do |document|
+        if fields.nil?
+          fields = document
+        elsif template.nil?
+          template = document
+        else
+          break
+        end
+      end
+      
+      Mold.new(file_id, fields, template)
     end
 
     def self.file_store

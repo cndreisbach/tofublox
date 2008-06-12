@@ -16,7 +16,7 @@ module Tofu::Controllers
   
   class MoldListController < R '/molds'
     def get
-      @molds = Mold.find(:all, '*')
+      @molds = Mold.find(:all)
       render :mold_list, :app
     end
   end
@@ -30,14 +30,15 @@ module Tofu::Controllers
 
   class BlockListController < R '/'
     def get
-      @blocks = Block.find(:all)
+      @blocks = Block.find(:all, :order => 'desc')
       render :block_list, :app
     end
 
     # create a block
     def post
-      @block = Block.new('a', input['block'].delete('type'), input['block'])
+      @block = Block.new(Time.now.strftime("%Y%m%d%H%M%S"), input['block'].delete('type'), input['block'])
       @block.save
+      redirect R(BlockListController)
     end
   end
 end
