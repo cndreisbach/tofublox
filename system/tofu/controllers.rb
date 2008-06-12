@@ -41,4 +41,11 @@ module Tofu::Controllers
       redirect R(BlockListController)
     end
   end
+
+  class BlockController < R '/(\w+)'
+    def get(id)
+      @block = Block.find(id)
+      render :block, :app
+    end
+  end
 end
