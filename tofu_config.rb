@@ -1,4 +1,4 @@
 Tofu.configure do |config|
-  config.database = 'sqlite://tofu.db'
+  config.database = 'sqlite:/tmp/tofu.db'
   config.admin_password = 'lombardo'
 end
