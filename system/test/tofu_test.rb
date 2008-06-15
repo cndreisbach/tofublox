@@ -1,25 +1,21 @@
 require 'rubygems'
-require 'mosquito'
+require 'test/unit'
 require 'mysticize'
 require File.dirname(__FILE__) + '/../tofu'
 
-Tofu.create
-
-class TofuTest < Camping::UnitTest
-  include Tofu::Models
-
+class TofuTest < Test::Unit::TestCase
   context "Tofu module" do
     should "load Post mold" do
       expect(defined? Post).to.be "constant"
     end
     
-    should "be able to make new molds" do
+    should "be able to make new block types" do
       review_mold = {
         'thing' => 'string',
         'stars' => 'numeric',
         'thoughts' => 'text'
       }
-      Tofu.make_new_mold('Review', review_mold)
+      Tofu.send(:create_block, 'Review', review_mold)
 
       expect(defined?(Review)).to.be "constant"
 
@@ -30,9 +26,7 @@ class TofuTest < Camping::UnitTest
   end
 end
 
-class BlockTest < Camping::UnitTest
-  include Tofu::Models
-  
+class BlockTest < Test::Unit::TestCase
   context "a new block" do
     should "be valid" do
       block = Block.new
