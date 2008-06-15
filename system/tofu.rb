@@ -1,19 +1,15 @@
 #!/usr/bin/env ruby
 $:.push(File.dirname(__FILE__))
 
-require 'rubygems'
-require 'camping'
-
-Camping.goes :Tofu
-
-Dir[File.join(File.dirname(__FILE__), 'vendor/*/lib')].each do |dir|
-  $:.push(dir)
+['vendor/*/lib', 'vendor/sequel/*/lib'].each do |glob|
+  Dir[File.join(File.dirname(__FILE__), glob)].each do |dir|
+    $:.push(dir)
+  end
 end
 
+require 'ramaze'
+require 'sequel'
 require 'active_files'
-require 'tofu/models'
-require 'tofu/controllers'
-require 'tofu/helpers'
 
 module Tofu
   DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)

@@ -1,3 +1,9 @@
 [submodule "system/vendor/active_files"]
 	path = system/vendor/active_files
 	url = git://github.com/crnixon/active_files.git
+[submodule "system/vendor/ramaze"]
+	path = system/vendor/ramaze
+	url = git://github.com/crnixon/ramaze.git
+[submodule "system/vendor/sequel"]
+	path = system/vendor/sequel
+	url = git://github.com/jeremyevans/sequel.git
