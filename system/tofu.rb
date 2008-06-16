@@ -15,14 +15,13 @@ module Tofu
   DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)
   @config = Struct.new(:database, :admin_password).new
   @molds = { }
-  @db = nil
+
+  class << self
+    attr_reader :molds, :config
+  end
   
   def self.dir(subdir = '')
     File.join(DIR, subdir)
-  end
-
-  def self.molds
-    @molds
   end
 
   def self.configure
