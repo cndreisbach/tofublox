@@ -1,25 +1,14 @@
 #!/usr/bin/env ruby
 
-$:.push(File.dirname(__FILE__))
-
-['vendor/*/lib', 'vendor/sequel/*/lib'].each do |glob|
+# set load paths
+['', 'vendor/*/lib', 'vendor/sequel/*/lib'].each do |glob|
   Dir["#{File.dirname(__FILE__)}/#{glob}"].each do |dir|
     $:.push(dir)
   end
 end
 
-require 'rubygems'
-require 'ramaze'
-require 'sequel'
-require 'active_files'
-
-unless defined? ERB
-  begin
-    require 'erubis'
-    ERB = Erubis::Eruby
-  rescue MissingSourceFile
-    require 'erb'
-  end
+%w(rubygems ramaze sequel active_files).each do |requirement|
+  require requirement
 end
 
 module Tofu
