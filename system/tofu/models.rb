@@ -36,6 +36,23 @@ class Mold
   def self.file_store
     File.join(Tofu.dir, 'molds')
   end
+
+  def create_block
+    eval("class ::#{self.name} < Block
+            #{create_block_fields}
+          end")
+  end
+
+  private
+
+  def create_block_fields
+    self.fields.map { |field, definition| create_block_field(field) }.join("\n")
+  end
+
+  def create_block_field(field)
+    "def #{field}; self.content['#{field}']; end\n" +
+      "def #{field}=(data); self.content['#{field}'] = data; end"
+  end
 end
 
 
