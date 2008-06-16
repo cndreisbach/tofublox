@@ -1,0 +1,10 @@
+%h2= "New #{@mold}"
+
+%form{:action => R(BlocksController), :method => 'POST'}
+  %input{:type => 'hidden', :name => 'block[mold]', :value => @mold.name}
+  - @mold.fields.each do |field, type|
+    %div
+      - field_name = "block[#{field}]"
+      %label{ :for => field_name }= field.to_s.capitalize
+      = form_field type, :name => field_name
+  %input{:type => 'submit', :value => 'Create block'}

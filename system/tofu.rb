@@ -8,9 +8,19 @@ $:.push(File.dirname(__FILE__))
   end
 end
 
+require 'rubygems'
 require 'ramaze'
 require 'sequel'
 require 'active_files'
+
+unless defined? ERB
+  begin
+    require 'erubis'
+    ERB = Erubis::Eruby
+  rescue MissingSourceFile
+    require 'erb'
+  end
+end
 
 module Tofu
   class Config < Struct.new(:database, :admin_password); end
@@ -39,12 +49,12 @@ module Tofu
   def self.setup
     require Tofu.dir + '/tofu_config'
     Sequel::Model.db = Sequel.connect(config.database)
-    ActiveFiles.base_dir = File.join(Tofu.dir, 'data')
 
-    require 'models/mold'
-    require 'models/block'
-    require 'controllers/mold_controller'
-    
+    # require all controllers and models
+    require 'tofu/models'
+    require 'tofu/controllers'
+    require 'tofu/helpers'
+
     Tofu.load_molds
     Block.create_table unless Block.table_exists?
   end
@@ -53,10 +63,9 @@ module Tofu
 
   def self.load_molds
     @molds = { }
-    mold_array = Mold.find(:all)
-    mold_array.each do |mold|
-      create_block(mold.name, mold.fields)
-      @molds[mold.name] = mold
+
+    Mold.find(:all).each do |mold|
+      create_block(mold.name, mold)
     end
   end
 
@@ -69,31 +78,35 @@ module Tofu
       "def #{field}=(data); self.content['#{field}'] = data; end"
   end
 
-  def self.create_block(name, fields)
-    self.module_eval <<EOF
-class ::#{name} < Block
-  #{create_block_fields(fields)}
-end
-EOF
+  def self.create_block(name, mold)
+    @molds[name] = mold
+    self.module_eval("class ::#{name} < Block
+                        #{create_block_fields(mold.fields)}
+                      end")
   end
 end
 
 Tofu.setup
 
-# Ramaze::Route['REST dispatch'] = lambda do |path, request|
-#   path << '/' unless path[-1] == '/'
+def get_request_method(request)
+  method = if request.request_method == 'POST' and request.params.has_key?('method')
+             request.params['method']
+           else
+             request.request_method
+           end
+  method.downcase
+end
 
-#   method = if request.request_method == 'POST' and request.params.has_key?('method')
-#              request.params['method'].upcase
-#            else
-#              request.request_method
-#            end
+Ramaze::Route['Tofu routing'] = lambda do |path, request|
+  method = get_request_method(request)
   
-#   case method
-#   when 'GET' then path << 'get/'
-#   when 'POST' then path << 'post/'
-#   when 'PUT' then path << 'put/'
-#   when 'DELETE' then path << 'delete/'
-#   else path
-#   end
-# end
+  case path
+  when '/error' then "/errors/index"
+  when '/molds' then "/molds/#{method}"
+  when %r{/mold/(\w+)} then "/mold/#{method}/#{$1}"
+  when '/blocks' then "/blocks/#{method}"
+  when %r{/block/([\w\-]+)} then "/block/#{method}/#{$1}"
+  when '/' then "/blocks/#{method}"
+  when %r{/([\w\-]+)} then "/block/#{method}/#{$1}"
+  end
+end

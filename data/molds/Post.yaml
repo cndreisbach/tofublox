@@ -1,9 +1,0 @@
----
-Title: string
-Body: text
----
-<h1><%= block.Title %></h1>
-<div>
-  <%= block.Body %>
-</div>
-

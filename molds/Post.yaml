@@ -1,0 +1,9 @@
+---
+Title: string
+Body: text
+---
+<h1><a href="/<%= self.id %>"><%= self.Title %></a></h1>
+<div>
+  <%= self.Body %>
+</div>
+
