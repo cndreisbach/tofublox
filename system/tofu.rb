@@ -23,19 +23,13 @@ unless defined? ERB
 end
 
 module Tofu
-  class Config < Struct.new(:database, :admin_password); end
-  
   DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)
-  @config = Config.new
+  @config = Struct.new(:database, :admin_password).new
   @molds = { }
   @db = nil
   
   def self.dir(subdir = '')
     File.join(DIR, subdir)
-  end
-
-  def self.config
-    @config
   end
 
   def self.molds
@@ -48,7 +42,7 @@ module Tofu
 
   def self.setup
     require Tofu.dir + '/tofu_config'
-    Sequel::Model.db = Sequel.connect(config.database)
+    Sequel::Model.db = Sequel.connect(@config.database) unless @config.database.nil?
 
     # require all controllers and models
     require 'tofu/models'
