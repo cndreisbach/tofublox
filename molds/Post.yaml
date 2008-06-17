@@ -4,6 +4,6 @@ Body: text
 ---
 <h1><a href="/#{id}">#{f 'Title'}</a></h1>
 <div>
-  #{f 'Body'}<br />
+  #{f 'Body'}
 </div>
 

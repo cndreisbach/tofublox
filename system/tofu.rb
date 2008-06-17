@@ -34,14 +34,12 @@ module Tofu
     end
 
     def setup
-      Ramaze::Global.view_root = dir('system/templates')
+      Ramaze::Global.view_root = dir('templates')
 
       require dir('tofu_config')
 
-      if env == 'test'
-        @db = Sequel.sqlite
-      else
-        @db = Sequel.sqlite(@config.database) unless @config.database.nil?
+      unless @db
+        @db = Sequel.sqlite((env == 'test') ? ':memory:' : @config.database)
       end
 
       acquire dir('system/tofu/*')
