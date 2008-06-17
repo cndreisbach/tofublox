@@ -10,12 +10,14 @@ class TofuTest < Test::Unit::TestCase
     end
     
     should "be able to make new block types" do
-      review_mold = {
+      review_fields = {
         'thing' => 'string',
         'stars' => 'numeric',
         'thoughts' => 'text'
       }
-      Tofu.send(:create_block, 'Review', review_mold)
+
+      review_mold = Mold.new('Review', review_fields)
+      review_mold.create_block
 
       expect(defined?(Review)).to.be "constant"
 

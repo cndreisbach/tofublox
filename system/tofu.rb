@@ -18,39 +18,37 @@ module Tofu
 
   class << self
     attr_reader :molds, :config
-  end
-  
-  def self.dir(subdir = '')
-    File.join(DIR, subdir)
-  end
 
-  def self.configure
-    yield @config
-  end
+    def dir(subdir = '')
+      File.join(DIR, subdir)
+    end
 
-  def self.setup
-    require Tofu.dir + '/tofu_config'
-    Sequel::Model.db = Sequel.connect(@config.database) unless @config.database.nil?
+    def configure
+      yield @config
+    end
 
-    require 'tofu/models'
-    require 'tofu/controllers'
-    require 'tofu/helpers'
-    require 'tofu/routes'
+    def setup
+      require dir('tofu_config')
+      Sequel::Model.db = Sequel.connect(@config.database) unless @config.database.nil?
 
-    Tofu.load_molds
-    Block.create_table unless Block.table_exists?
-  end
+      acquire dir('system/tofu/*')
 
-  private
+      load_molds
+      Block.create_table unless Block.table_exists?
+    end
 
-  def self.load_molds
-    @molds = { }
+    private
 
-    Mold.find(:all).each do |mold|
-      @molds[mold.name] = mold
-      mold.create_block
+    def load_molds
+      @molds = { }
+
+      Mold.find(:all).each do |mold|
+        @molds[mold.name] = mold
+        mold.create_block
+      end
     end
   end
+ 
 end
 
 Tofu.setup
