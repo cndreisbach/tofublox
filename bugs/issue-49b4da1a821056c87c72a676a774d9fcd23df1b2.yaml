@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: No specs for BlockController
+desc: ""
+type: :bugfix
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-17 20:34:01.034998 Z
+references: []
+
+id: 49b4da1a821056c87c72a676a774d9fcd23df1b2
+log_events: 
+- - 2008-06-17 20:34:01.035689 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""

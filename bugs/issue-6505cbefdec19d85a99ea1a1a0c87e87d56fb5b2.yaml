@@ -1,0 +1,20 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: Main site needs a sample layout
+desc: |-
+  A layout is needed for the Tofu-generated site. If this layout can be 
+  put in a user-accessible location, all the better.
+type: :feature
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-17 20:39:55.771747 Z
+references: []
+
+id: 6505cbefdec19d85a99ea1a1a0c87e87d56fb5b2
+log_events: 
+- - 2008-06-17 20:39:55.772586 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""

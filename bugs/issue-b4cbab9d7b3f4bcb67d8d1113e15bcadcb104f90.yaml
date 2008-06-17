@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: A user should be able to delete posts
+desc: ""
+type: :feature
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-17 20:41:09.002415 Z
+references: []
+
+id: b4cbab9d7b3f4bcb67d8d1113e15bcadcb104f90
+log_events: 
+- - 2008-06-17 20:41:09.003247 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""

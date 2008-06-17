@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: A permalink should be generated for each block
+desc: Not sure how to do this at this time.
+type: :feature
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-17 20:43:21.103071 Z
+references: []
+
+id: 5620cfa1a6d719b5dbdfbe4a08827273f89ca2c4
+log_events: 
+- - 2008-06-17 20:43:21.103656 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""

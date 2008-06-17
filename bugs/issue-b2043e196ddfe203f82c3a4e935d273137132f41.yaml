@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: Blocks should be checked for validity
+desc: Blocks should have a validation check to make sure they are OK before saving.
+type: :feature
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-17 20:42:33.992573 Z
+references: []
+
+id: b2043e196ddfe203f82c3a4e935d273137132f41
+log_events: 
+- - 2008-06-17 20:42:33.993146 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""

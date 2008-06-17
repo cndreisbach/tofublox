@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: No specs for Mold
+desc: ""
+type: :bugfix
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-17 20:32:57.046826 Z
+references: []
+
+id: c2d25e1b3c2c1a74636f455d74e2c1e74bbc8dbc
+log_events: 
+- - 2008-06-17 20:32:57.047397 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""
