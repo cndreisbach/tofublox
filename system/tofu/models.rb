@@ -90,6 +90,6 @@ class Block < Sequel::Model
   end
 
   def to_html
-    ERB.new(self.mold.template).result(binding)
+    Ezamar::Template.new(self.mold.template).result(binding)
   end
 end
