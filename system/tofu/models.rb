@@ -57,17 +57,19 @@ class Block < Sequel::Model
     @values[:content] = content
   end
 
-  def mold
-    Tofu.molds[@values[:mold]]
-  end
-
   def field(key)
-    @values[:content][key]
+    @values[:content][key.to_s]
   end
 
   alias f field
 
-  def to_html
+  def mold
+    Tofu.molds[@values[:mold]]
+  end
+
+  def to_s
     Ezamar::Template.new(self.mold.template).result(binding)
   end
+
+  alias to_str to_s
 end
