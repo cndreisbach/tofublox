@@ -1,7 +1,6 @@
 class BlocksController < Ramaze::Controller
   map '/blocks'
   engine :Haml
-  view_root Tofu.dir('system/templates/blocks')
 
   def get
     @blocks = Block.order(:created_at.desc)
@@ -24,7 +23,6 @@ end
 class MoldsController < Ramaze::Controller
   map '/molds'
   engine :Haml
-  view_root Tofu.dir('system/templates/molds')
   
   def get
     @molds = Mold.find(:all)
@@ -35,7 +33,6 @@ end
 class MoldController < Ramaze::Controller
   map '/mold'
   engine :Haml
-  view_root Tofu.dir('system/templates/mold')
   helper :form
 
   def get(id)

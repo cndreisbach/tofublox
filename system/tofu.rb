@@ -34,6 +34,8 @@ module Tofu
     end
 
     def setup
+      Ramaze::Global.view_root = dir('system/templates')
+
       require dir('tofu_config')
 
       if env == 'test'
@@ -43,7 +45,6 @@ module Tofu
       end
 
       acquire dir('system/tofu/*')
-
       load_molds
       Block.create_table unless Block.table_exists?
     end
