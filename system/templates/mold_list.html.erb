@@ -1,8 +1,0 @@
-<h1>Molds</h1>
-<ul>
-  <% @molds.each do |mold| %>
-    <li>
-      <%= a mold.name, :href => R(MoldController, mold.name) %>
-    </li>
-  <% end %>
-</ul>

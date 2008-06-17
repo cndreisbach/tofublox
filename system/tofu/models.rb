@@ -1,80 +1,75 @@
-require 'ostruct'
+class Mold
+  include ActiveFiles::Record
 
-module Tofu::Models
+  attr_reader :fields, :template
 
-  class Mold
-    include ActiveFiles::Record
+  def initialize(fields = { }, template = "")
+    @fields = fields
+    @template = template
+  end
+  
+  alias :name :file_id
+  alias :to_s :file_id
 
-    attr_reader :fields, :template
-
-    def initialize(fields = { }, template = "")
-      @fields = fields
-      @template = template
-    end
-    
-    alias :name :file_id
-    alias :to_s :file_id
-
-    add_file_id_to_initialize
-
-    def to_activefile
-      [@fields.to_yaml, @template].join("--- \n")
-    end
-
-    def self.from_activefile(yaml, file_id)
-      fields, template = nil
-
-      YAML::load_documents(yaml) do |document|
-        if fields.nil?
-          fields = document
-        elsif template.nil?
-          template = document
-        else
-          break
-        end
-      end
-      
-      Mold.new(file_id, fields, template)
-    end
-
-    def self.file_store
-      File.join(ActiveFiles.base_dir, 'molds')
-    end
+  add_file_id_to_initialize
+  
+  def to_activefile
+    [@fields.to_yaml, @template].join("--- \n")
   end
 
-  class Block
-    include ActiveFiles::Record
-    
-    attr_reader :mold, :content
+  def self.from_activefile(yaml, file_id)
+    documents = yaml.split("\n---\n")
+    fields = YAML::load documents.shift
+    template = documents.shift || String.new
+        
+    Mold.new(file_id, fields, template)
+  end
 
-    def initialize(mold_type, content = {})
-      @mold = Mold.find(mold_type)
-      @content = content
-    end
+  def self.file_store
+    File.join(Tofu.dir, 'molds')
+  end
+end
 
-    add_file_id_to_initialize
 
-    def to_activefile
-      @content.merge(:mold => @mold.name).to_yaml
-    end
+class Block < Sequel::Model
+  set_schema do
+    primary_key :id
+    string :mold
+    text :content
+    timestamp :created_at
+    timestamp :altered_at
+  end
 
-    def self.from_activefile(yaml, file_id)
-      hash = YAML::load(yaml)
-      mold_type = hash.delete(:mold)
-      content = hash
-      Block.new(file_id, mold_type, content)
-    end
+  serialize :content
 
-    def self.file_store
-      File.join(ActiveFiles.base_dir, 'blocks')
-    end
+  after_initialize(:setup_content) do
+    self.content = Hash.new unless self.content.is_a? Hash
+  end
 
-    def method_missing(method, *args)
-      if @content.has_key?(method.to_s)
-        @content[method.to_s]
-      else
-        raise NoMethodError
-      end
-    end
-  end  
+  before_save(:set_timestamps) do
+    now = Time.now
+    self.created_at ||= now
+    self.altered_at = now
+  end
+
+  def content=(content)
+    raise ArgumentError, "Content must be a hash" unless content.is_a? Hash
+    @values[:content] = content
+  end
+
+  def field(key)
+    @values[:content][key.to_s]
+  end
+
+  alias f field
+
+  def mold
+    Tofu.molds[@values[:mold]]
+  end
+
+  def to_s
+    Ezamar::Template.new(self.mold.template).result(binding)
+  end
+
+  alias to_str to_s
 end

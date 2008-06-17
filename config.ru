@@ -1,7 +1,6 @@
-require 'rubygems'
-require 'rack'
-require 'camping'
+$:.push(File.dirname(__FILE__) + '/system')
+require 'tofu'
 
-require File.dirname(__FILE__) + '/system/tofu.rb'
-
-run Rack::Adapter::Camping.new(Tofu)
+Ramaze.trait[:essentials].delete Ramaze::Adapter
+Ramaze.start!
+run Ramaze::Adapter::Base

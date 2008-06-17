@@ -1,51 +1,57 @@
-require 'mime/types'
+class BlocksController < Ramaze::Controller
+  map '/blocks'
+  engine :Haml
 
-module Tofu::Controllers
-  class StaticController < R('/(css/.+)')
-    def get(file)
-      if file.include? '..'
-        @status = '403'
-        return '403 - Invalid path'
-      else
-        type = (MIME::Types.type_for(file)[0] || 'text/plain').to_s
-        @headers['Content-Type'] = type
-        @headers['X-Sendfile'] = File.join Tofu.dir, 'public', file
-      end
-    end
-  end
-  
-  class MoldListController < R '/molds'
-    def get
-      @molds = Mold.find(:all)
-      render :mold_list, :app
-    end
+  def get
+    @blocks = Block.order(:created_at.desc)
   end
 
-  class MoldController < R '/molds/(\w+)'
-    def get(id)
-      @mold = Mold.find(id)
-      render :mold, :app
-    end
-  end
+  def post
+    @block = Block.new
+    @block.mold = request.params['block'].delete('mold')
 
-  class BlockListController < R '/'
-    def get
-      @blocks = Block.find(:all, :order => 'desc')
-      render :block_list, :app
+    request.params['block'].each do |key, value|
+      @block.content[key] = value
     end
 
-    # create a block
-    def post
-      @block = Block.new(Time.now.strftime("%Y%m%d%H%M%S"), input['block'].delete('type'), input['block'])
-      @block.save
-      redirect R(BlockListController)
-    end
-  end
-
-  class BlockController < R '/(\w+)'
-    def get(id)
-      @block = Block.find(id)
-      render :block, :app
-    end
+    @block.save
+    redirect R('/')
   end
 end
+
+
+class MoldsController < Ramaze::Controller
+  map '/molds'
+  engine :Haml
+  
+  def get
+    @molds = Mold.find(:all)
+  end
+end
+
+
+class MoldController < Ramaze::Controller
+  map '/mold'
+  engine :Haml
+  helper :form
+
+  def get(id)
+    @mold = Mold.find(id)
+  end
+end
+
+# require 'mime/types'
+# module Tofu::Controllers
+#   class StaticController < R('/(css/.+)')
+#     def get(file)
+#       if file.include? '..'
+#         @status = '403'
+#         return '403 - Invalid path'
+#       else
+#         type = (MIME::Types.type_for(file)[0] || 'text/plain').to_s
+#         @headers['Content-Type'] = type
+#         @headers['X-Sendfile'] = File.join Tofu.dir, 'public', file
+#       end
+#     end
+#   end  
+# end

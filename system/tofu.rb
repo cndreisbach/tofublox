@@ -1,34 +1,66 @@
 #!/usr/bin/env ruby
-$:.push(File.dirname(__FILE__))
 
-require 'rubygems'
-require 'camping'
+$TOFU_ENV ||= 'development'
 
-Camping.goes :Tofu
-
-Dir[File.join(File.dirname(__FILE__), 'vendor/*/lib')].each do |dir|
-  $:.push(dir)
+# set load paths
+['', 'vendor/*/lib', 'vendor/sequel/*/lib'].each do |glob|
+  Dir["#{File.dirname(__FILE__)}/#{glob}"].each do |dir|
+    $:.push(dir)
+  end
 end
 
-require 'active_files'
-require 'tofu/models'
-require 'tofu/controllers'
-require 'tofu/helpers'
+%w(rubygems ramaze sequel active_files).each do |requirement|
+  require requirement
+end
 
 module Tofu
   DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)
+  @config = Struct.new(:database, :admin_password).new
+  @molds = { }
 
-  def self.dir
-    DIR
-  end
+  class << self
+    attr_reader :molds, :config, :db
 
-  def self.system_dir
-    File.join(self.dir, 'system')
-  end
+    def dir(subdir = '')
+      File.join(DIR, subdir)
+    end
 
-  def self.template_dir
-    File.join(self.system_dir, 'templates')
+    def env
+      $TOFU_ENV
+    end
+
+    def configure
+      yield @config
+    end
+
+    def setup
+      Ramaze::Global.view_root = dir('system/templates')
+
+      require dir('tofu_config')
+
+      if env == 'test'
+        @db = Sequel.sqlite
+      else
+        @db = Sequel.sqlite(@config.database) unless @config.database.nil?
+      end
+
+      acquire dir('system/tofu/*')
+      load_molds
+      Block.create_table unless Block.table_exists?
+    end
+
+    private
+
+    def load_molds
+      @molds = { }
+
+      Mold.find(:all).each do |mold|
+        @molds[mold.name] = mold
+      end
+    end
   end
+ 
 end
 
-ActiveFiles.base_dir = File.join(Tofu.dir, 'data')
+Tofu.setup
+
