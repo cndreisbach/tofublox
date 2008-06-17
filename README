@@ -1,13 +1,9 @@
 Required gems:
-camping
+none
 
 Recommended gems:
-mongrel
-rack
-erubis
+rake
 
 Gems for working on tofu:
+mocha
 ditz
-spect
-Shoulda
-mosquito
