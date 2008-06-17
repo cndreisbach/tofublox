@@ -2,8 +2,8 @@
 Title: string
 Body: text
 ---
-<h1><a href="/#{self.id}">#{self.Title}</a></h1>
+<h1><a href="/#{id}">#{f 'Title'}</a></h1>
 <div>
-  #{self.Body}
+  #{f 'Body'}<br />
 </div>
 

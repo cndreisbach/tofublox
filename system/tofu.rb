@@ -44,7 +44,6 @@ module Tofu
 
       Mold.find(:all).each do |mold|
         @molds[mold.name] = mold
-        mold.create_block
       end
     end
   end

@@ -8,9 +8,11 @@ class BlocksController < Ramaze::Controller
   end
 
   def post
-    @block = request.params['block']['mold'].constantize.new
+    @block = Block.new
+    @block.mold = request.params['block'].delete('mold')
+
     request.params['block'].each do |key, value|
-      @block.send("#{key}=", value)
+      @block.content[key] = value
     end
 
     @block.save

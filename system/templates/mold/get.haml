@@ -5,6 +5,6 @@
   - @mold.fields.each do |field, type|
     %div
       - field_name = "block[#{field}]"
-      %label{ :for => field_name }= field.to_s.capitalize
+      %label{ :for => field_name }= field.to_s
       = form_field type, :name => field_name
   %input{:type => 'submit', :value => 'Create block'}
