@@ -47,12 +47,9 @@ class Block < Sequel::Model
   end
 
   before_save(:set_timestamps) do
-    self.created_at ||= Time.now
-    self.altered_at = Time.now
-  end
-
-  def initialize(*args)
-    super(*args)
+    now = Time.now
+    self.created_at ||= now
+    self.altered_at = now
   end
 
   def content=(content)

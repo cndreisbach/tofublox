@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+$TOFU_ENV ||= 'development'
+
 # set load paths
 ['', 'vendor/*/lib', 'vendor/sequel/*/lib'].each do |glob|
   Dir["#{File.dirname(__FILE__)}/#{glob}"].each do |dir|
@@ -17,10 +19,14 @@ module Tofu
   @molds = { }
 
   class << self
-    attr_reader :molds, :config
+    attr_reader :molds, :config, :db
 
     def dir(subdir = '')
       File.join(DIR, subdir)
+    end
+
+    def env
+      $TOFU_ENV
     end
 
     def configure
@@ -29,7 +35,12 @@ module Tofu
 
     def setup
       require dir('tofu_config')
-      Sequel::Model.db = Sequel.connect(@config.database) unless @config.database.nil?
+
+      if env == 'test'
+        @db = Sequel.sqlite
+      else
+        @db = Sequel.sqlite(@config.database) unless @config.database.nil?
+      end
 
       acquire dir('system/tofu/*')
 
