@@ -2,3 +2,4 @@
 *.db
 tofu.sqlite3
 data/blocks
+.emacs-project
