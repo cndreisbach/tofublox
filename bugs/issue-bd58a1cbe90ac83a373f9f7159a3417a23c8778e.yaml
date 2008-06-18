@@ -1,0 +1,20 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: MoldController needs a functional spec
+desc: |-
+  I've done a unit test, but need a functional test to check
+  MoldController in HTTP action.
+type: :bugfix
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-18 21:11:48.162507 Z
+references: []
+
+id: bd58a1cbe90ac83a373f9f7159a3417a23c8778e
+log_events: 
+- - 2008-06-18 21:11:50.821049 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""

@@ -18,4 +18,9 @@ class Bacon::Context
   end  
 end  
 
+class Ramaze::Controller
+  def assigns(var_name)
+    instance_variable_get("@#{var_name}")
+  end
+end
 
