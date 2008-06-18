@@ -14,7 +14,7 @@ class Mold
   add_file_id_to_initialize
   
   def to_activefile
-    [@fields.to_yaml, @template].join("--- \n")
+    raise RuntimeError, "Not implemented"
   end
 
   def self.from_activefile(yaml, file_id)
