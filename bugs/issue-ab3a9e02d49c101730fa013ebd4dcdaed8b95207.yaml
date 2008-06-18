@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: BlocksController needs a functional spec
+desc: ""
+type: :bugfix
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-18 22:06:23.401091 Z
+references: []
+
+id: ab3a9e02d49c101730fa013ebd4dcdaed8b95207
+log_events: 
+- - 2008-06-18 22:06:23.401547 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""
