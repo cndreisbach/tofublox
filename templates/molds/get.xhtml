@@ -1,0 +1,9 @@
+<h2>Create a new block</h2>
+
+<ul>
+  <% @molds.each do |mold| %>
+    <li>
+      #{A(mold.name, :href => R(:mold, mold.name))}
+    </li>
+  <% end %>
+</ul>

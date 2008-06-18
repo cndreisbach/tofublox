@@ -1,6 +1,19 @@
-class BlocksController < Ramaze::Controller
+class TofuController < Ramaze::Controller
+  engine :Ezamar
+end
+
+
+class AdminController < TofuController
+  layout :layout
+
+  def layout
+    render_template('../layouts/admin')
+  end
+end
+
+
+class BlocksController < TofuController
   map '/blocks'
-  engine :Haml
 
   def get
     @blocks = Block.order(:created_at.desc)
@@ -20,9 +33,8 @@ class BlocksController < Ramaze::Controller
 end
 
 
-class MoldsController < Ramaze::Controller
+class MoldsController < AdminController
   map '/molds'
-  engine :Haml
   
   def get
     @molds = Mold.find(:all)
@@ -30,28 +42,11 @@ class MoldsController < Ramaze::Controller
 end
 
 
-class MoldController < Ramaze::Controller
+class MoldController < AdminController
   map '/mold'
-  engine :Haml
   helper :form
 
   def get(id)
     @mold = Mold.find(id)
   end
 end
-
-# require 'mime/types'
-# module Tofu::Controllers
-#   class StaticController < R('/(css/.+)')
-#     def get(file)
-#       if file.include? '..'
-#         @status = '403'
-#         return '403 - Invalid path'
-#       else
-#         type = (MIME::Types.type_for(file)[0] || 'text/plain').to_s
-#         @headers['Content-Type'] = type
-#         @headers['X-Sendfile'] = File.join Tofu.dir, 'public', file
-#       end
-#     end
-#   end  
-# end

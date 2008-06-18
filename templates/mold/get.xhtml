@@ -1,0 +1,12 @@
+<h2>New #{@mold}</h2>
+
+<form action="#{R(BlocksController)}" method="POST">
+  <input type="hidden" name="block[mold]" value="#{@mold.name}" />
+  <% @mold.fields.each do |field, type| %>
+    <div>
+      <label for="block[#{field}]">#{field}</label>
+      #{form_field type, :name => "block[#{field}]"}
+    </div>
+  <% end %>
+  <input type="submit" value="Create block" />
+</form>
