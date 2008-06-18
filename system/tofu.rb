@@ -1,7 +1,5 @@
 #!/usr/bin/env ruby
 
-$TOFU_ENV ||= 'development'
-
 # set load paths
 ['', 'vendor/*/lib', 'vendor/sequel/*/lib'].each do |glob|
   Dir["#{File.dirname(__FILE__)}/#{glob}"].each do |dir|
@@ -26,7 +24,7 @@ module Tofu
     end
 
     def env
-      $TOFU_ENV
+      ENV['RACK_ENV'] || 'development'
     end
 
     def configure
@@ -61,4 +59,3 @@ module Tofu
 end
 
 Tofu.setup
-

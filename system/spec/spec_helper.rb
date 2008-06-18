@@ -1,4 +1,4 @@
-$TOFU_ENV = 'test'
+ENV['RACK_ENV'] = 'test'
 
 require File.dirname(__FILE__) + '/../tofu'
 require 'ramaze/spec/helper'
