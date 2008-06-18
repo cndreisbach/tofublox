@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: MoldsController needs a functional spec
+desc: ""
+type: :bugfix
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-18 21:23:46.046094 Z
+references: []
+
+id: 8803100d5fae66d774e097ff30d18496f8da26e7
+log_events: 
+- - 2008-06-18 21:23:46.046765 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""
