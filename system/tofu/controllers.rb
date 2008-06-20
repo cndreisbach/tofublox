@@ -33,6 +33,16 @@ class BlocksController < TofuController
 end
 
 
+class BlockController < TofuController
+  def get(id)
+    @block = Block[id]
+    if @block.nil?
+      respond("That block was not found.", 404)
+    end
+  end
+end
+
+
 class MoldsController < AdminController
   map '/molds'
   

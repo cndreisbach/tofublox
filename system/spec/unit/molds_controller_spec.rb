@@ -2,9 +2,7 @@ require File.dirname(__FILE__) + '/../spec_helper'
 
 describe 'Molds Controller' do
 
-  before do
-    @controller = MoldsController.new
-  end
+  behaves_like 'controller spec'
 
   it "should get an array of molds" do
     @controller.get

@@ -2,16 +2,10 @@ require File.dirname(__FILE__) + '/../spec_helper'
 
 describe 'Blocks Controller' do
 
-  before do
-    @controller = BlocksController.new
-    @controller.stubs(:redirect).returns(nil)
-
-    @request = mock()
-    @controller.stubs(:request).returns(@request)
-  end
-
+  behaves_like 'controller spec'
+  
   it "should get a dataset of blocks" do
-    Block.create(:mold => 'Post', :content => { 'Title' => 'test', 'Body' => 'test' })
+    create_block
     
     @controller.get
     @controller.assigns(:blocks).should.be.kind_of Sequel::Dataset

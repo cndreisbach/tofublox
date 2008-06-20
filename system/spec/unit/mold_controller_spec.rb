@@ -2,10 +2,8 @@ require File.dirname(__FILE__) + '/../spec_helper'
 
 describe 'MoldController' do
 
-  before do
-    @controller = MoldController.new
-  end
-
+  behaves_like 'controller spec'
+  
   it "should get a mold" do
     @controller.get('Post')
     @controller.assigns(:mold).should.not.be.nil

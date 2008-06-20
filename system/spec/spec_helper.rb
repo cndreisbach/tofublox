@@ -6,7 +6,19 @@ require "rubygems"
 require "mocha/standalone"  
 require "mocha/object"  
 
-class Bacon::Context  
+module SpecFactory
+  def create_block(options = { })
+    default_options = {
+      :mold => 'Post',
+      :content => { 'Title' => 'test', 'Body' => 'test' }
+    }
+    Block.create(default_options.merge(options))
+  end
+end
+
+class Bacon::Context
+  include SpecFactory
+  
   include Mocha::Standalone  
   alias_method :old_it,:it  
 
@@ -24,3 +36,11 @@ class Ramaze::Controller
   end
 end
 
+shared("controller spec") do
+  before do
+    @controller = @name.gsub(/\s+/, '').constantize.new
+    @controller.stubs(:redirect).returns(nil)
+    @request = mock()
+    @controller.stubs(:request).returns(@request)
+  end
+end
