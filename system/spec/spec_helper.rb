@@ -7,12 +7,16 @@ require "mocha/standalone"
 require "mocha/object"  
 
 module SpecFactory
-  def create_block(options = { })
+  def new_block(options = { })
     default_options = {
       :mold => 'Post',
-      :content => { 'Title' => 'test', 'Body' => 'test' }
+      :content => { 'Title' => 'test', 'Body' => 'test' },
     }
-    Block.create(default_options.merge(options))
+    Block.new(default_options.merge(options))
+  end
+
+  def create_block(*opts)
+    new_block(*opts).save
   end
 end
 

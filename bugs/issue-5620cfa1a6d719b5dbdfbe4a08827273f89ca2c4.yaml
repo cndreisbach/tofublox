@@ -5,8 +5,8 @@ type: :feature
 component: Tofublox
 release: Initial public release
 reporter: Clinton R. Nixon <crnixon@gmail.com>
-status: :unstarted
-disposition: 
+status: :closed
+disposition: :fixed
 creation_time: 2008-06-17 20:43:21.103071 Z
 references: []
 
@@ -15,4 +15,12 @@ log_events:
 - - 2008-06-17 20:43:21.103656 Z
   - Clinton R. Nixon <crnixon@gmail.com>
   - created
+  - ""
+- - 2008-06-20 14:08:26.065767 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - changed status from unstarted to in_progress
+  - ""
+- - 2008-06-20 20:20:45.436009 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - closed issue with disposition fixed
   - ""

@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: Blocks should be looked up in block controller by permalink
+desc: ""
+type: :feature
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-06-20 20:21:07.991486 Z
+references: []
+
+id: bcc57d68491f0253df5e308e016bd7eeff4a8f34
+log_events: 
+- - 2008-06-20 20:21:07.992102 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""
