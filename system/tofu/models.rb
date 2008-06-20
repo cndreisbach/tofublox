@@ -43,6 +43,13 @@ class Block < Sequel::Model
 
   validates do
     uniqueness_of :permalink
+    presence_of :mold, :content
+  end
+
+  validates_each :mold do |obj, attr, value|
+    unless Tofu.molds.keys.include?(value.to_s)
+      obj.errors[attr] = 'should be a valid mold'
+    end
   end
 
   serialize :content

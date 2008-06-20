@@ -5,8 +5,10 @@ describe 'a new Block' do
     @block = Block.new
   end
   
-  it "should be valid" do
-    @block.should.be.valid
+  it "should not be valid" do
+    @block.should.not.be.valid
+    @block.errors[:mold].should.not.be.nil
+    @block.errors[:content].should.not.be.nil
   end
 
   it "should have an empty hash as content" do
