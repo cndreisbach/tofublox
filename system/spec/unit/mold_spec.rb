@@ -36,13 +36,13 @@ describe 'Mold class' do
 
   it "should be able to be created from a text format" do
     mold_text = %q[---
-URL: string
-Description: text
+- URL: string
+- Description: text
 ---
 #{f :URL} // #{f :Description}]
     bookmark = Mold.from_activefile(mold_text, 'Bookmark')
 
-    bookmark.fields.should == { 'URL' => 'string', 'Description' => 'text' }
+    bookmark.fields.should == [['URL', 'string'], ['Description', 'text']]
     bookmark.template.should == '#{f :URL} // #{f :Description}'
     bookmark.name.should == 'Bookmark'
   end
