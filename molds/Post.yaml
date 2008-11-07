@@ -1,6 +1,6 @@
 ---
-Title: string
-Body: text
+- Title: string
+- Body: text
 ---
 <h1><a href="/#{id}">#{f 'Title'}</a></h1>
 <div>

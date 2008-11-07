@@ -3,7 +3,7 @@ class Mold
 
   attr_reader :fields, :template
 
-  def initialize(fields = { }, template = "")
+  def initialize(fields, template)
     @fields = fields
     @template = template
   end
@@ -19,7 +19,7 @@ class Mold
 
   def self.from_activefile(yaml, file_id)
     documents = yaml.split("\n---\n")
-    fields = YAML::load documents.shift
+    fields = YAML::load(documents.shift).map { |field| field.to_a.first }
     template = documents.shift || String.new
         
     Mold.new(file_id, fields, template)
