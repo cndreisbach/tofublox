@@ -7,6 +7,3 @@
 [submodule "system/vendor/sequel"]
 	path = system/vendor/sequel
 	url = git://github.com/jeremyevans/sequel.git
-[submodule "system/vendor/haml"]
-	path = system/vendor/haml
-	url = git://github.com/nex3/haml.git
