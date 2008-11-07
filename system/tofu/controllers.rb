@@ -34,8 +34,8 @@ end
 
 
 class BlockController < TofuController
-  def get(permalink)
-    @block = Block[:permalink => permalink]
+  def get(block_id)
+    @block = Block[:id => block_id]
     if @block.nil?
       respond("That block was not found.", 404)
     end
