@@ -5,8 +5,7 @@ describe 'Block Controller' do
   behaves_like 'controller spec'
 
   it "should retrieve a block" do
-    block = create_block
-    
+    block = create_block    
     @controller.get(block.permalink)
     @controller.assigns(:block).should.not.be.nil
   end
