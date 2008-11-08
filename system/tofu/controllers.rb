@@ -50,7 +50,7 @@ class BlockController < TofuController
       @block.mold = request.params['block'].delete('mold')
     end
 
-    block.update_content(request.params['block'])
+    @block.update_content(request.params['block'])
 
     @block.save
   end
