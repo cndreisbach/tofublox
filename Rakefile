@@ -13,3 +13,22 @@ task 'spec' do
   files.each { |file| load file }
 end
 
+desc "Run reek"
+task 'reek' do
+  system "reek #{system_files.join(' ')}"
+end
+
+desc "Run roodi"
+task 'roodi' do
+  system "roodi #{system_files.join(' ')}"
+end
+
+desc "Run flog"
+task 'flog' do
+  system "flog #{system_files.join(' ')}"
+end
+
+def system_files
+  Dir['system/tofu.rb'] + Dir['system/tofu/**/*.rb']
+end
+
