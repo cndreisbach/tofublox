@@ -7,34 +7,17 @@ class TofuController < Ramaze::Controller
   end
 end
 
-
-class AdminController < TofuController
-  def layout
-    render_template('../layouts/admin')
-  end
-end
-
-
-class BlocksController < TofuController
-  map '/blocks'
+class IndexController < TofuController
+  map '/index'
 
   def get
     @blocks = Block.order(:created_at.desc)
   end
-
-  def post
-    block = Block.new
-    block.mold = request.params['block'].delete('mold')
-    block.update_content(request.params['block'])
-
-    block.save
-    redirect R('/')
-  end
 end
 
 
-class BlockController < TofuController
-  map '/block'
+class ViewController < TofuController
+  map '/view'
 
   def get(permalink)
     @block = Block[:permalink => permalink]
@@ -42,22 +25,12 @@ class BlockController < TofuController
       respond("That block was not found.", 404)
     end
   end
+end
 
-  def put(permalink)
-    @block = Block[:permalink => permalink]
 
-    if request.params['block']['mold']
-      @block.mold = request.params['block'].delete('mold')
-    end
-
-    @block.update_content(request.params['block'])
-
-    @block.save
-  end
-
-  def delete(permalink)
-    @block = Block[:permalink => permalink]
-    @block.destroy
+class AdminController < TofuController
+  def layout
+    render_template('../layouts/admin')
   end
 end
 
@@ -77,5 +50,56 @@ class MoldController < AdminController
 
   def get(id)
     @mold = Mold.find(id)
+  end
+end
+
+class BlocksController < AdminController
+  map '/blocks'
+
+  def get
+    @blocks = Block.order(:created_at.desc)
+  end
+
+  def post
+    block = Block.new
+    block.mold = request.params['block'].delete('mold')
+    block.update_content(request.params['block'])
+
+    block.save
+
+    redirect R(BlocksController)
+  end
+end
+
+
+class BlockController < AdminController
+  map '/block'
+  helper :form
+
+  def get(permalink)
+    @block = Block[:permalink => permalink]
+    if @block.nil?
+      respond("That block was not found.", 404)
+    end
+  end
+  
+  def put(permalink)
+    @block = Block[:permalink => permalink]
+
+    if request.params['block']['mold']
+      @block.mold = request.params['block'].delete('mold')
+    end
+
+    @block.update_content(request.params['block'])
+    @block.save
+    
+    redirect R(BlocksController)
+  end
+
+  def delete(permalink)
+    @block = Block[:permalink => permalink]
+    @block.destroy
+
+    redirect R(BlocksController)
   end
 end

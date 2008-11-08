@@ -11,12 +11,13 @@ Ramaze::Route['Tofu routing'] = lambda do |path, request|
   method = self.get_request_method(request)
   
   case path
-  when '/error' then "/errors/index"
+  when '/error' then "/error/#{method}"
   when '/molds' then "/molds/#{method}"
   when %r{/mold/(\w+)} then "/mold/#{method}/#{$1}"
   when '/blocks' then "/blocks/#{method}"
   when %r{/block/([\w\-]+)} then "/block/#{method}/#{$1}"
-  when '/' then "/blocks/#{method}"
-  when %r{/([\w\-]+)} then "/block/#{method}/#{$1}"
+  when '/' then "/index/#{method}"
+  when %r{/view/([\w\-]+)} then "/view/#{method}/#{$1}"
+  else "/error/#{method}"
   end
 end

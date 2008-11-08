@@ -5,7 +5,7 @@ Fields:
 ---
 <div class="hentry" id="post-#{id}">
   <h2 class="entry-title">
-    <a href="/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
+    <a href="/view/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
   </h2>
   <div class="entry-content">
     #{f 'Body'}

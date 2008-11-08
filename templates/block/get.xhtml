@@ -1,3 +1,12 @@
-<div class="block #{@block.mold.name}">
-  #{@block}
-</div>
+<h2>Edit #{@block.mold}</h2>
+
+<form action="#{R(BlockController, @block.permalink)}" method="POST">
+  <input type="hidden" name="method" value="PUT" />
+  <% @block.mold.fields.each do |field, type| %>
+    <div>
+      <label for="block[#{field}]">#{field}</label>
+      #{form_field type, :name => "block[#{field}]", :value => @block.field(field)}
+    </div>
+  <% end %>
+  <input type="submit" value="Update block" />
+</form>
