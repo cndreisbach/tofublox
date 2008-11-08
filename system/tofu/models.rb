@@ -19,7 +19,9 @@ class Mold
 
   def self.from_activefile(yaml, file_id)
     documents = yaml.split("\n---\n")
-    fields = YAML::load(documents.shift).map { |field| field.to_a.first }
+
+    data = YAML::load(documents.shift)
+    fields = data['Fields'].map { |field| field.to_a.first }
     template = documents.shift || String.new
         
     Mold.new(file_id, fields, template)

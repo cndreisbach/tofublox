@@ -1,4 +1,5 @@
 ---
+Fields:
 - Title: string
 - Body: text
 ---

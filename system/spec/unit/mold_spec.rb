@@ -36,6 +36,7 @@ describe 'Mold class' do
 
   it "should be able to be created from a text format" do
     mold_text = %q[---
+Fields:
 - URL: string
 - Description: text
 ---
