@@ -1,11 +1,14 @@
 class TofuController < Ramaze::Controller
   engine :Ezamar
+  layout :layout
+
+  def layout
+    render_template('../layouts/site')
+  end
 end
 
 
 class AdminController < TofuController
-  layout :layout
-
   def layout
     render_template('../layouts/admin')
   end

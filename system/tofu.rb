@@ -7,13 +7,15 @@
   end
 end
 
-%w(rubygems ramaze sequel active_files).each do |requirement|
+%w(ramaze rubygems sequel active_files).each do |requirement|
   require requirement
 end
 
 module Tofu
   DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)
-  @config = Struct.new(:database, :admin_password).new
+  @config = Struct.new(:title,
+                       :database, 
+                       :admin_password).new
   @molds = { }
 
   class << self
