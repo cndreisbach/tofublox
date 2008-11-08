@@ -37,6 +37,8 @@ end
 
 
 class BlockController < TofuController
+  map '/block'
+
   def get(permalink)
     @block = Block[:permalink => permalink]
     if @block.nil?
