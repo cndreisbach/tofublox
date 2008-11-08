@@ -2,8 +2,12 @@
 - Title: string
 - Body: text
 ---
-<h1><a href="/#{permalink}">#{f 'Title'}</a></h1>
-<div>
-  #{f 'Body'}
+<div class="hentry" id="post-#{id}">
+  <h2 class="entry-title">
+    <a href="/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
+  </h2>
+  <div class="entry-content">
+    #{f 'Body'}
+  </div>
 </div>
 
