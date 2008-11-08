@@ -23,8 +23,15 @@ describe 'Block Controller' do
                                                         'Body' => 'Updated content'
                                                       }})
     @controller.put(block.permalink)
-
     @controller.assigns(:block).field('Title').should == 'Updated title'
+  end
+
+  it "should delete a block" do
+    block = create_block
+
+    lambda {
+      @controller.delete(block.permalink)
+    }.should.change { Block.count }
   end
 
 end

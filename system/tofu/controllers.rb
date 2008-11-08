@@ -59,6 +59,11 @@ class BlockController < TofuController
 
     @block.save
   end
+
+  def delete(permalink)
+    @block = Block[:permalink => permalink]
+    @block.destroy
+  end
 end
 
 
