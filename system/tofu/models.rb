@@ -73,6 +73,13 @@ class Block < Sequel::Model
     @values[:content] = content
   end
 
+  def update_content(content)
+    raise ArgumentError, "Content must be a hash" unless content.is_a? Hash
+    content.each do |key, value|
+      self.content[key] = value
+    end
+  end
+
   def field(key)
     @values[:content][key.to_s]
   end

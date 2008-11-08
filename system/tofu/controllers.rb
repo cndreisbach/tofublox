@@ -25,10 +25,7 @@ class BlocksController < TofuController
   def post
     block = Block.new
     block.mold = request.params['block'].delete('mold')
-
-    request.params['block'].each do |key, value|
-      block.content[key] = value
-    end
+    block.update_content(request.params['block'])
 
     block.save
     redirect R('/')
@@ -53,9 +50,7 @@ class BlockController < TofuController
       @block.mold = request.params['block'].delete('mold')
     end
 
-    request.params['block'].each do |key, value|
-      @block.content[key] = value
-    end
+    block.update_content(request.params['block'])
 
     @block.save
   end

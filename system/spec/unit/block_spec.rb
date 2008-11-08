@@ -129,6 +129,11 @@ describe 'a Block' do
 
     @block.permalink.should.match /test-\d\d/
   end
+
+  it "should update its content" do
+    @block.update_content('Title' => 'Updated!')
+    @block.field(:Title).should == 'Updated!'
+  end
   
 end
 
