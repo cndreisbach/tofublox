@@ -15,4 +15,16 @@ describe 'Block Controller' do
     @controller.get(-1).should == nil
   end
 
+  it "should update a block" do
+    block = create_block
+    @request.expects(:params).at_least_once.returns({ 'block' => {
+                                                        'mold' => 'Post',
+                                                        'Title' => 'Updated title',
+                                                        'Body' => 'Updated content'
+                                                      }})
+    @controller.put(block.permalink)
+
+    @controller.assigns(:block).field('Title').should == 'Updated title'
+  end
+
 end

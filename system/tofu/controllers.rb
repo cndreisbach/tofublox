@@ -43,6 +43,20 @@ class BlockController < TofuController
       respond("That block was not found.", 404)
     end
   end
+
+  def put(permalink)
+    @block = Block[:permalink => permalink]
+
+    if request.params['block']['mold']
+      @block.mold = request.params['block'].delete('mold')
+    end
+
+    request.params['block'].each do |key, value|
+      @block.content[key] = value
+    end
+
+    @block.save
+  end
 end
 
 
