@@ -1,9 +1,8 @@
 Required gems:
 none
 
-Recommended gems:
-rake
-
 Gems for working on tofu:
 mocha
 ditz
+reek
+roodi
