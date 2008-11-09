@@ -1,0 +1,12 @@
+<h2>Tofu Accident</h2>
+
+<p>
+  There is some sort of messy Tofu error happening.
+</p>
+
+<pre>
+  Error: #{Ramaze::Dispatcher::Error.trait[:last_error]}
+  <?r if Ramaze::Dispatcher::Error.trait[:last_error].respond_to? :message ?>
+  #{Ramaze::Dispatcher::Error.trait[:last_error].message}
+  <?r end ?>
+</pre>

@@ -108,3 +108,15 @@ class BlockController < AdminController
     redirect R(BlocksController)
   end
 end
+
+class ErrorController < TofuController
+  map '/error'
+
+  define_method(:401) { }
+  define_method(:404) { }
+  define_method(:500) { }
+
+  def method_missing(sym)
+    self.send(:500)
+  end
+end

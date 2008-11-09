@@ -12,6 +12,7 @@ Ramaze::Route['Tofu routing'] = lambda do |path, request|
   
   case path
   when '/admin' then "/blocks/get"
+  when '/error' then '/error/500'
   when %r{/error/([\w\-]+)} then "/error/#{$1}"
   when '/molds' then "/molds/#{method}"
   when %r{/mold/(\w+)} then "/mold/#{method}/#{$1}"
@@ -19,11 +20,11 @@ Ramaze::Route['Tofu routing'] = lambda do |path, request|
   when %r{/block/([\w\-]+)} then "/block/#{method}/#{$1}"
   when '/' then "/index/#{method}"
   when %r{/view/([\w\-]+)} then "/view/#{method}/#{$1}"
-  else "/error/unknown"
+  else "/error/404"
   end
 end
 
 Ramaze::Dispatcher::Error::HANDLE_ERROR.merge!({ 
-  Tofu::Errors::Unauthorized => [ Ramaze::STATUS_CODE['Unauthorized'], '/' ],
-  Tofu::Errors::BadRequest => [ Ramaze::STATUS_CODE['Bad Request'], '/' ]
+  Tofu::Errors::Unauthorized => [ Ramaze::STATUS_CODE['Unauthorized'], '/error/401' ],
+  Tofu::Errors::BadRequest => [ Ramaze::STATUS_CODE['Bad Request'], '/error/400' ]
 })
