@@ -8,5 +8,7 @@
       #{form_field type, :name => "block[#{field}]", :value => @block.field(field)}
     </div>
   <% end %>
+  <label for="block[author]">Author</label>
+  <input name="block[author]" type="text" value="#{@block.author}" />
   <input type="submit" value="Update block" />
 </form>

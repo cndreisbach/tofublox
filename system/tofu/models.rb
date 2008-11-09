@@ -38,6 +38,7 @@ class Block < Sequel::Model
     primary_key :id
     string :permalink
     string :mold
+    string :author
     text :content
     timestamp :created_at
     timestamp :altered_at
@@ -45,7 +46,7 @@ class Block < Sequel::Model
 
   validates do
     uniqueness_of :permalink
-    presence_of :mold, :content
+    presence_of :mold, :content, :author
   end
 
   validates_each :mold do |obj, attr, value|

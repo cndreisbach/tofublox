@@ -20,6 +20,7 @@ describe 'Blocks Controller' do
     lambda {
       @request.expects(:params).at_least_once.returns({ 'block' => {
                                                           'mold' => 'Post',
+                                                          'author' => 'Kraator',
                                                           'Title' => 'A test title',
                                                           'Body' => 'Some body content'
                                                         }})

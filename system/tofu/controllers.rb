@@ -68,6 +68,7 @@ class BlocksController < AdminController
   def post
     block = Block.new
     block.mold = request.params['block'].delete('mold')
+    block.author = request.params['block'].delete('author')
     block.update_content(request.params['block'])
 
     block.save
@@ -83,19 +84,17 @@ class BlockController < AdminController
 
   def get(permalink)
     @block = Block[:permalink => permalink]
-    if @block.nil?
-      respond("That block was not found.", 404)
-    end
+    respond("That block was not found.", 404) if @block.nil?
   end
   
   def put(permalink)
     @block = Block[:permalink => permalink]
+    params = request.params['block'].dup
 
-    if request.params['block']['mold']
-      @block.mold = request.params['block'].delete('mold')
-    end
+    @block.mold = params.delete('mold') if params['mold']
+    @block.author = params.delete('author') if params['author']
 
-    @block.update_content(request.params['block'])
+    @block.update_content(params)
     @block.save
     
     redirect R(BlocksController)
@@ -103,7 +102,7 @@ class BlockController < AdminController
 
   def delete(permalink)
     @block = Block[:permalink => permalink]
-    @block.destroy
+    @block.destroy unless @block.nil?
 
     redirect R(BlocksController)
   end
@@ -112,11 +111,11 @@ end
 class ErrorController < TofuController
   map '/error'
 
-  define_method(:401) { }
-  define_method(:404) { }
-  define_method(:500) { }
+  define_method('401') { }
+  define_method('404') { }
+  define_method('500') { }
 
   def method_missing(sym)
-    self.send(:500)
+    self.send('500')
   end
 end

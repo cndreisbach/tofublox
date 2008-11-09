@@ -8,6 +8,7 @@ module SpecFactory
   def new_block(options = { })
     default_options = {
       :mold => 'Post',
+      :author => 'Powerfist',
       :content => { 'Title' => 'test', 'Body' => 'test' },
     }
     Block.new(default_options.merge(options))

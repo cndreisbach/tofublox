@@ -8,5 +8,7 @@
       #{form_field type, :name => "block[#{field}]"}
     </div>
   <% end %>
+  <label for="block[author]">Author</label>
+  <input name="block[author]" type="text" value="#{request.env['REMOTE_USER']}" />
   <input type="submit" value="Create block" />
 </form>
