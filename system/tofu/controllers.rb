@@ -29,6 +29,11 @@ end
 
 
 class AdminController < TofuController
+  include Tofu::Auth
+  helper :aspect
+
+  before(:get, :post) { require_login }
+
   def layout
     render_template('../layouts/admin')
   end

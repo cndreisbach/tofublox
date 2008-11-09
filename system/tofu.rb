@@ -58,6 +58,11 @@ module Tofu
     end
   end
  
+  module Errors
+    class Unauthorized < Exception; end
+    class BadRequest < Exception; end
+  end
+  
 end
 
 
@@ -66,5 +71,6 @@ class String
     self.strip.downcase.gsub(/[^-a-z0-9~\s\.:;+=_]/, '').gsub(/[\s\.:;=+]+/, '-')
   end
 end
+
 
 Tofu.setup
