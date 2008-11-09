@@ -1,0 +1,18 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: README needed
+desc: ""
+type: :feature
+component: Tofublox
+release: Initial public release
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2008-11-09 01:13:46.931732 Z
+references: []
+
+id: 31d73097c123fdbf0277cdb545b304e80f4fcdca
+log_events: 
+- - 2008-11-09 01:13:48.547291 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""
