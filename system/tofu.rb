@@ -7,7 +7,7 @@
   end
 end
 
-%w(ramaze rubygems sequel active_files).each do |requirement|
+%w(ramaze sequel active_files).each do |requirement|
   require requirement
 end
 
