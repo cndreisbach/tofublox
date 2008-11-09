@@ -5,6 +5,13 @@ class TofuController < Ramaze::Controller
   def layout
     render_template('../layouts/site')
   end
+
+  private
+
+  def load_block(permalink)
+    @block = Block[:permalink => permalink]
+    raise Tofu::Errors::NotFound if @block.nil?
+  end
 end
 
 class IndexController < TofuController
@@ -20,10 +27,7 @@ class ViewController < TofuController
   map '/view'
 
   def get(permalink)
-    @block = Block[:permalink => permalink]
-    if @block.nil?
-      respond("That block was not found.", 404)
-    end
+    load_block(permalink)
   end
 end
 
@@ -83,12 +87,11 @@ class BlockController < AdminController
   helper :form
 
   def get(permalink)
-    @block = Block[:permalink => permalink]
-    respond("That block was not found.", 404) if @block.nil?
+    load_block(permalink)
   end
   
   def put(permalink)
-    @block = Block[:permalink => permalink]
+    load_block(permalink)
     params = request.params['block'].dup
 
     @block.mold = params.delete('mold') if params['mold']
@@ -101,11 +104,11 @@ class BlockController < AdminController
   end
 
   def delete(permalink)
-    @block = Block[:permalink => permalink]
-    @block.destroy unless @block.nil?
-
+    load_block(permalink)
+    @block.destroy
     redirect R(BlocksController)
   end
+
 end
 
 class ErrorController < TofuController

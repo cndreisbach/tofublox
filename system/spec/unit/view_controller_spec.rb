@@ -10,4 +10,10 @@ describe 'View Controller' do
     @controller.assigns(:block).should.not.be.nil
   end
 
+  it "should raise NotFound if block not found" do
+    lambda { 
+      @controller.get(-1)
+    }.should.raise Tofu::Errors::NotFound
+  end
+
 end

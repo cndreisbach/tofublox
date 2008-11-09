@@ -61,6 +61,7 @@ module Tofu
   module Errors
     class Unauthorized < Exception; end
     class BadRequest < Exception; end
+    class NotFound < Exception; end
   end
   
 end

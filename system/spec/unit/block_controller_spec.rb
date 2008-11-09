@@ -10,9 +10,10 @@ describe 'Block Controller' do
     @controller.assigns(:block).should.not.be.nil
   end
 
-  it "should return a 404 if block not found" do
-    @controller.expects(:respond).with('That block was not found.', 404)
-    @controller.get(-1).should == nil
+  it "should raise NotFound if block not found" do
+    lambda { 
+      @controller.get(-1)
+    }.should.raise Tofu::Errors::NotFound
   end
 
   it "should update a block" do
