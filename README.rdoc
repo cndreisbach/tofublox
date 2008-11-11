@@ -25,11 +25,11 @@ You can set the default title for your site here, as well as the password to log
 
 * +molds/+
 
-This is where you put definitions of *blocks*, serial content posted to your site.
+This is where you put definitions of _blocks_, serial content posted to your site.
 
 * +templates/+
 
-The templates for your site's output (as well as admin section) are here. They are in XHTML format, with Ruby code written with Ezamar[http://ramaze.rubyforge.org/rdoc/classes/Ezamar/Template.html].
+The templates for your site's output (as well as admin section) are here. They are in XHTML format, with Ruby code written with Ezamar (http://ramaze.rubyforge.org/rdoc/classes/Ezamar/Template.html).
 
 == Mold definitions
 
