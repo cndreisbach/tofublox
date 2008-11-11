@@ -7,10 +7,14 @@ components:
 releases: 
 - !ditz.rubyforge.org,2008-03-06/release 
   name: Initial public release
-  status: :unreleased
-  release_time: 
+  status: :released
+  release_time: 2008-11-11 12:02:06.535005 Z
   log_events: 
   - - 2008-06-17 20:29:38.546586 Z
     - Clinton R. Nixon <crnixon@gmail.com>
     - created
     - This should be the minimum of functionality for Tofu.
+  - - 2008-11-11 12:02:06.535018 Z
+    - Clinton R. Nixon <crnixon@gmail.com>
+    - released
+    - ""
