@@ -3,4 +3,4 @@
 	url = git://github.com/crnixon/active_files.git
 [submodule "system/vendor/ramaze"]
 	path = system/vendor/ramaze
-  url = git://github.com/crnixon/ramaze.git
+	url = git://github.com/manveru/ramaze.git

@@ -99,7 +99,7 @@ class Block < Sequel::Model
   end
 
   def to_s
-    Ezamar::Template.new(self.mold.template).result(binding)
+    Ezamar::Template.new(self.mold.template, :file => mold.send(:filename) ).result(binding)
   end
 
   alias to_str to_s
