@@ -63,6 +63,7 @@ describe 'a Block' do
   it "should use its mold's template for string representation" do
     mold = mock()
     mold.stubs(:template).returns('Hello #{f :name}')
+    mold.stubs(:filename).returns('/etc/passwd')
     @block.stubs(:mold).returns(mold)
     
     @block.content['name'] = 'world'
