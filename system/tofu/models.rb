@@ -1,11 +1,12 @@
 class Mold
   include ActiveFiles::Record
 
-  attr_reader :fields, :template
+  attr_reader :fields, :summary, :body
 
-  def initialize(fields, template)
+  def initialize(fields, summary, body)
     @fields = fields
-    @template = template
+    @summary = summary
+    @body = body
   end
   
   alias :name :file_id
@@ -22,9 +23,10 @@ class Mold
 
     data = YAML::load(documents.shift)
     fields = data['Fields'].map { |field| field.to_a.first }
-    template = documents.shift || String.new
+    summary = documents.shift || String.new
+    body = documents.shift || summary
         
-    Mold.new(file_id, fields, template)
+    Mold.new(file_id, fields, summary, body)
   end
 
   def self.file_store
@@ -98,11 +100,16 @@ class Block < Sequel::Model
     Tofu.molds[@values[:mold]]
   end
 
-  def to_s
-    Ezamar::Template.new(self.mold.template, :file => mold.send(:filename) ).result(binding)
+  def summary
+    Ezamar::Template.new(self.mold.summary, :file => mold.send(:filename) ).result(binding)
   end
 
-  alias to_str to_s
+  def body
+    Ezamar::Template.new(self.mold.body, :file => mold.send(:filename) ).result(binding)
+  end
+
+  alias_method :to_s, :body
+  alias_method :to_str, :body
 
   private
 

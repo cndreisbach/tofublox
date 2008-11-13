@@ -4,8 +4,9 @@ describe 'a Mold' do
 
   before do
     @fields = { 'URL' => 'string', 'Description' => 'text' }
-    @template = '#{f :URL} // #{f :Description}'
-    @mold = Mold.new('Bookmark', @fields, @template)
+    @summary = @body = '#{f :URL} // #{f :Description}'
+    
+    @mold = Mold.new('Bookmark', @fields, @summary, @body)
   end
 
   it "should have a name" do
@@ -16,16 +17,13 @@ describe 'a Mold' do
     @mold.to_s.should == 'Bookmark'
   end
 
-  it "should have fields" do
-    @mold.should.respond_to(:fields)
-    @mold.fields.should == @fields
+  %w(fields summary body).each do |varname|
+    it "should have #{varname}" do
+      @mold.should.respond_to(varname)
+      @mold.send(varname).should == instance_variable_get("@#{varname}")
+    end
   end
 
-  it "should have a template" do
-    @mold.should.respond_to(:template)
-    @mold.template.should == @template
-  end
-  
 end
 
 
@@ -40,11 +38,14 @@ Fields:
 - URL: string
 - Description: text
 ---
+#{f :URL}
+---
 #{f :URL} // #{f :Description}]
     bookmark = Mold.from_activefile(mold_text, 'Bookmark')
 
     bookmark.fields.should == [['URL', 'string'], ['Description', 'text']]
-    bookmark.template.should == '#{f :URL} // #{f :Description}'
+    bookmark.summary.should == '#{f :URL}'
+    bookmark.body.should == '#{f :URL} // #{f :Description}'
     bookmark.name.should == 'Bookmark'
   end
 end

@@ -60,9 +60,9 @@ describe 'a Block' do
     @block.mold.should == Tofu.molds['Post']
   end
 
-  it "should use its mold's template for string representation" do
+  it "should use its mold's body for string representation" do
     mold = mock()
-    mold.stubs(:template).returns('Hello #{f :name}')
+    mold.stubs(:body).returns('Hello #{f :name}')
     mold.stubs(:filename).returns('/etc/passwd')
     @block.stubs(:mold).returns(mold)
     

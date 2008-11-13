@@ -1,5 +1,5 @@
-<% @blocks.each do |block| %>
+<?r @blocks.each do |block| ?>
   <div class="block #{block.mold.name}">
-    #{block}
+    #{block.summary}
   </div>
-<% end %>
+<?r end ?>

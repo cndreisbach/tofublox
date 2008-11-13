@@ -1,0 +1,29 @@
+---
+Fields:
+- Title: string
+- Teaser: text
+- Body: text
+---
+<div class="block post" id="post-#{id}">
+  <h2 class="block-title">
+    <a href="/view/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
+  </h2>
+  <div class="block-content">
+    #{f('Teaser')}
+
+    <p><a href="/view/#{permalink}">Read the rest of the article...</p>
+  </div>
+</div>
+---
+<div class="block post" id="post-#{id}">
+  <h2 class="block-title">
+    <a href="/view/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
+  </h2>
+  <div class="block-content">
+    <div style='font-style: italic;'>
+      #{f 'Teaser'}
+    </div>
+    
+    #{f 'Body'}
+  </div>
+</div>

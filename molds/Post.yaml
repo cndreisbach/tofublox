@@ -3,12 +3,11 @@ Fields:
 - Title: string
 - Body: text
 ---
-<div class="hentry" id="post-#{id}">
-  <h2 class="entry-title">
+<div class="block post" id="post-#{id}">
+  <h2 class="block-title">
     <a href="/view/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
   </h2>
-  <div class="entry-content">
+  <div class="block-content">
     #{f 'Body'}
   </div>
 </div>
-
