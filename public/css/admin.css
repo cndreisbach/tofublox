@@ -4,6 +4,7 @@ html, body {
   background-color: white;
   margin: 0;
   color: #424254;
+  font-size: 100%;
 }
 
 #header {
@@ -73,11 +74,13 @@ input, textarea {
   width: 300px;
   margin-bottom: 5px;
   background-color: #E8CAA4;
+  font-size: 110%;
 }
 
 textarea {
   width: 400px;
   height: 200px;
+  font-family: monospace;
 }
 
 form input[type=submit] {
