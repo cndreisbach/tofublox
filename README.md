@@ -16,7 +16,7 @@ If you want to hack on TofuBlox, you'll want the following gems:
 * reek
 * roodi
 
-== Installation and setup
+## Installation and setup
 
 Clone the git repository (git://github.com/crnixon/tofublox.git) or download a tarball and expand it. This should be ready to run, but you'll want to customize it. You should pay attention to the files below:
 
