@@ -1,4 +1,5 @@
 require 'rake'
+require 'rcov/rcovtask'
 
 task :default => :spec
 
@@ -11,6 +12,12 @@ task 'spec' do
   files = Dir["system/spec/**/*_spec.rb"]
   Bacon.summary_on_exit
   files.each { |file| load file }
+end
+
+Rcov::RcovTask.new do |t|
+  t.rcov_opts = ['-x spec.rb,spec_helper.rb']
+  t.pattern = "system/spec/**/*_spec.rb"
+  t.verbose = true
 end
 
 desc "Run reek"
