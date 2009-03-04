@@ -6,13 +6,12 @@ module Sequel
     COLUMN_REF_RE1 = /\A([\w ]+)__([\w ]+)___([\w ]+)\z/.freeze
     COLUMN_REF_RE2 = /\A([\w ]+)___([\w ]+)\z/.freeze
     COLUMN_REF_RE3 = /\A([\w ]+)__([\w ]+)\z/.freeze
-    COUNT_FROM_SELF_OPTS = [:distinct, :group, :sql, :limit]
-    DATE_FORMAT = "DATE '%Y-%m-%d'".freeze
+    COUNT_FROM_SELF_OPTS = [:distinct, :group, :sql, :limit, :compounds]
     N_ARITY_OPERATORS = ::Sequel::SQL::ComplexExpression::N_ARITY_OPERATORS
     NULL = "NULL".freeze
     QUESTION_MARK = '?'.freeze
-    STOCK_COUNT_OPTS = {:select => ["COUNT(*)".lit], :order => nil}.freeze
-    TIMESTAMP_FORMAT = "TIMESTAMP '%Y-%m-%d %H:%M:%S'".freeze
+    STOCK_COUNT_OPTS = {:select => [LiteralString.new("COUNT(*)").freeze], :order => nil}.freeze
+    SELECT_CLAUSE_ORDER = %w'distinct columns from join where group having compounds order limit'.freeze
     TWO_ARITY_OPERATORS = ::Sequel::SQL::ComplexExpression::TWO_ARITY_OPERATORS
     WILDCARD = '*'.freeze
 
@@ -44,9 +43,14 @@ module Sequel
       sql << "ELSE #{literal(ce.default)} END)"
     end
 
+    # SQL fragment for the SQL CAST expression.
+    def cast_sql(expr, type)
+      "CAST(#{literal(expr)} AS #{db.send(:type_literal_base, :type=>type)})"
+    end
+
     # SQL fragment for specifying all columns in a given table.
     def column_all_sql(ca)
-      "#{quote_identifier(ca.table)}.*"
+      "#{quote_schema_table(ca.table)}.*"
     end
 
     # SQL fragment for complex expressions
@@ -75,14 +79,12 @@ module Sequel
 
     # Formats a DELETE statement using the given options and dataset options.
     # 
-    #   dataset.filter(:price >= 100).delete_sql #=>
+    #   dataset.filter{|o| o.price >= 100}.delete_sql #=>
     #     "DELETE FROM items WHERE (price >= 100)"
     def delete_sql(opts = nil)
       opts = opts ? @opts.merge(opts) : @opts
 
-      if sql = opts[:sql]
-        return sql
-      end
+      return static_sql(opts[:sql]) if opts[:sql]
 
       if opts[:group]
         raise Error::InvalidOperation, "Grouped datasets cannot be deleted from"
@@ -105,7 +107,7 @@ module Sequel
     #   DB[:items].except(DB[:other_items]).sql
     #   #=> "SELECT * FROM items EXCEPT SELECT * FROM other_items"
     def except(dataset, all = false)
-      clone(:except => dataset, :except_all => all)
+      compound_clone(:except, dataset, all)
     end
 
     # Performs the inverse of Dataset#filter.
@@ -122,12 +124,12 @@ module Sequel
       clone(clause => cond)
     end
 
-    # Returns an EXISTS clause for the dataset.
+    # Returns an EXISTS clause for the dataset as a LiteralString.
     #
     #   DB.select(1).where(DB[:items].exists).sql
     #   #=> "SELECT 1 WHERE EXISTS (SELECT * FROM items)"
     def exists(opts = nil)
-      "EXISTS (#{select_sql(opts)})"
+      LiteralString.new("EXISTS (#{select_sql(opts)})")
     end
 
     # Returns a copy of the dataset with the given conditions imposed upon it.  
@@ -164,13 +166,13 @@ module Sequel
     #     "SELECT * FROM items WHERE price < 100"
     #   dataset.filter(:active).sql #=>
     #     "SELECT * FROM items WHERE :active
-    #   dataset.filter(:price < 100).sql #=>
+    #   dataset.filter{|o| o.price < 100}.sql #=>
     #     "SELECT * FROM items WHERE (price < 100)"
     # 
     # Multiple filter calls can be chained for scoping:
     #
     #   software = dataset.filter(:category => 'software')
-    #   software.filter(price < 100).sql #=>
+    #   software.filter{|o| o.price < 100}.sql #=>
     #     "SELECT * FROM items WHERE ((category = 'software') AND (price < 100))"
     #
     # See doc/dataset_filters.rdoc for more examples and details.
@@ -185,8 +187,7 @@ module Sequel
     alias_method :where, :filter
 
     # The first source (primary table) for this dataset.  If the dataset doesn't
-    # have a table, raises an error.  If the table is aliased, returns the actual
-    # table name, not the alias.
+    # have a table, raises an error.  If the table is aliased, returns the aliased name.
     def first_source
       source = @opts[:from]
       if source.nil? || source.empty?
@@ -270,9 +271,7 @@ module Sequel
     #   dataset.insert_sql(:a => 1, :b => 2) #=>
     #     'INSERT INTO items (a, b) VALUES (1, 2)'
     def insert_sql(*values)
-      if sql = @opts[:sql]
-        return sql
-      end
+      return static_sql(@opts[:sql]) if @opts[:sql]
 
       from = source_list(@opts[:from])
       case values.size
@@ -319,7 +318,7 @@ module Sequel
     #   DB[:items].intersect(DB[:other_items]).sql
     #   #=> "SELECT * FROM items INTERSECT SELECT * FROM other_items"
     def intersect(dataset, all = false)
-      clone(:intersect => dataset, :intersect_all => all)
+      compound_clone(:intersect, dataset, all)
     end
 
     # Inverts the current filter
@@ -467,36 +466,39 @@ module Sequel
     # If an unsupported object is given, an exception is raised.
     def literal(v)
       case v
-      when LiteralString
-        v
       when String
-        "'#{v.gsub(/\\/, "\\\\\\\\").gsub(/'/, "''")}'"
-      when Integer, Float
-        v.to_s
+        return v if v.is_a?(LiteralString)
+        v.is_a?(SQL::Blob) ? literal_blob(v) : literal_string(v)
+      when Symbol
+        literal_symbol(v)
+      when Integer
+        literal_integer(v)
+      when Hash
+        literal_hash(v)
+      when SQL::Expression
+        literal_expression(v)
+      when Float
+        literal_float(v)
       when BigDecimal
-        v.to_s("F")
+        literal_big_decimal(v)
       when NilClass
         NULL
       when TrueClass
-        BOOL_TRUE
+        literal_true
       when FalseClass
-        BOOL_FALSE
-      when Symbol
-        symbol_to_column_ref(v)
-      when ::Sequel::SQL::Expression
-        v.to_s(self)
+        literal_false
       when Array
-        v.all_two_pairs? ? literal(v.sql_expr) : array_sql(v)
-      when Hash
-        literal(v.sql_expr)
-      when Time, DateTime
-        v.strftime(TIMESTAMP_FORMAT)
+        literal_array(v)
+      when Time
+        literal_time(v)
+      when DateTime
+        literal_datetime(v)
       when Date
-        v.strftime(DATE_FORMAT)
+        literal_date(v)
       when Dataset
-        "(#{v.sql})"
+        literal_dataset(v)
       else
-        raise Error, "can't express #{v.inspect} as a SQL literal"
+        literal_other(v)
       end
     end
 
@@ -538,15 +540,17 @@ module Sequel
     #   ds.order(:name.asc).sql #=> 'SELECT * FROM items ORDER BY name ASC'
     #   ds.order(:arr|1).sql #=> 'SELECT * FROM items ORDER BY arr[1]'
     #   ds.order(nil).sql #=> 'SELECT * FROM items'
-    def order(*order)
-      clone(:order => (order.compact.empty?) ? nil : order)
+    def order(*columns)
+      columns += Array((yield SQL::VirtualRow.new)) if block_given?
+      clone(:order => (columns.compact.empty?) ? nil : columns)
     end
     alias_method :order_by, :order
     
     # Returns a copy of the dataset with the order columns added
     # to the existing order.
-    def order_more(*order)
-      order(*((@opts[:order] || []) + order))
+    def order_more(*columns)
+      columns += Array((yield SQL::VirtualRow.new)) if block_given?
+      order(*((@opts[:order] || []) + columns))
     end
     
     # SQL fragment for the ordered expression, used in the ORDER BY
@@ -555,31 +559,43 @@ module Sequel
       "#{literal(oe.expression)} #{oe.descending ? 'DESC' : 'ASC'}"
     end
 
+    # SQL fragment for a literal string with placeholders
+    def placeholder_literal_string_sql(pls)
+      args = pls.args.dup
+      s = pls.str.gsub(QUESTION_MARK){literal(args.shift)}
+      s = "(#{s})" if pls.parens
+      s
+    end
+
     # SQL fragment for the qualifed identifier, specifying
     # a table and a column (or schema and table).
     def qualified_identifier_sql(qcr)
-      [qcr.table, qcr.column].map{|x| x.is_one_of?(SQL::QualifiedIdentifier, SQL::Identifier) ? literal(x) : quote_identifier(x)}.join('.')
+      [qcr.table, qcr.column].map{|x| x.is_one_of?(SQL::QualifiedIdentifier, SQL::Identifier, Symbol) ? literal(x) : quote_identifier(x)}.join('.')
     end
 
     # Adds quoting to identifiers (columns and tables). If identifiers are not
     # being quoted, returns name as a string.  If identifiers are being quoted
     # quote the name with quoted_identifier.
     def quote_identifier(name)
-      quote_identifiers? ? quoted_identifier(name) : name.to_s
+      return name if name.is_a?(LiteralString)
+      name = input_identifier(name)
+      name = quoted_identifier(name) if quote_identifiers?
+      name
     end
     alias_method :quote_column_ref, :quote_identifier
 
+    # Separates the schema from the table and returns a string with them
+    # quoted (if quoting identifiers)
+    def quote_schema_table(table)
+      schema, table = schema_and_table(table)
+      "#{"#{quote_identifier(schema)}." if schema}#{quote_identifier(table)}"
+    end
+
     # This method quotes the given name with the SQL standard double quote. 
-    # It uppercases the name given to conform with the SQL standard. This
     # should be overridden by subclasses to provide quoting not matching the
-    # SQL standard, such as backtick (used by MySQL and SQLite), or where
-    # lowercase is the default for unquoted identifiers (PostgreSQL).
-    #
-    # If you are using a database such as Oracle that defaults to uppercase
-    # but you are using lower case identifiers, you should override this
-    # method to not upcase the name for those identifiers.
+    # SQL standard, such as backtick (used by MySQL and SQLite).
     def quoted_identifier(name)
-      "\"#{name.to_s.upcase}\""
+      "\"#{name.to_s.gsub('"', '""')}\""
     end
 
     # Returns a copy of the dataset with the order reversed. If no order is
@@ -589,9 +605,28 @@ module Sequel
     end
     alias_method :reverse, :reverse_order
 
+    # Split the schema information from the table
+    def schema_and_table(table_name)
+      sch = db.default_schema if db
+      case table_name
+      when Symbol
+        s, t, a = split_symbol(table_name)
+        [s||sch, t]
+      when SQL::QualifiedIdentifier
+        [table_name.table, table_name.column]
+      when SQL::Identifier
+        [sch, table_name.value]
+      when String
+        [sch, table_name]
+      else
+        raise Error, 'table_name should be a Symbol, SQL::QualifiedIdentifier, SQL::Identifier, or String'
+      end
+    end
+
     # Returns a copy of the dataset with the columns selected changed
     # to the given columns.
     def select(*columns)
+      columns += Array((yield SQL::VirtualRow.new)) if block_given?
       clone(:select => columns)
     end
     
@@ -603,6 +638,7 @@ module Sequel
     # Returns a copy of the dataset with the given columns added
     # to the existing selected columns.
     def select_more(*columns)
+      columns += Array((yield SQL::VirtualRow.new)) if block_given?
       select(*((@opts[:select] || []) + columns))
     end
     
@@ -610,63 +646,9 @@ module Sequel
     # options.
     def select_sql(opts = nil)
       opts = opts ? @opts.merge(opts) : @opts
-      
-      if sql = opts[:sql]
-        return sql
-      end
-
-      columns = opts[:select]
-      select_columns = columns ? column_list(columns) : WILDCARD
-
-      if distinct = opts[:distinct]
-        distinct_clause = distinct.empty? ? "DISTINCT" : "DISTINCT ON (#{expression_list(distinct)})"
-        sql = "SELECT #{distinct_clause} #{select_columns}"
-      else
-        sql = "SELECT #{select_columns}"
-      end
-      
-      if opts[:from]
-        sql << " FROM #{source_list(opts[:from])}"
-      end
-      
-      if join = opts[:join]
-        join.each{|j| sql << literal(j)}
-      end
-
-      if where = opts[:where]
-        sql << " WHERE #{literal(where)}"
-      end
-
-      if group = opts[:group]
-        sql << " GROUP BY #{expression_list(group)}"
-      end
-
-      if having = opts[:having]
-        sql << " HAVING #{literal(having)}"
-      end
-
-      if order = opts[:order]
-        sql << " ORDER BY #{expression_list(order)}"
-      end
-
-      if limit = opts[:limit]
-        sql << " LIMIT #{limit}"
-        if offset = opts[:offset]
-          sql << " OFFSET #{offset}"
-        end
-      end
-
-      if union = opts[:union]
-        sql << (opts[:union_all] ? \
-          " UNION ALL #{union.sql}" : " UNION #{union.sql}")
-      elsif intersect = opts[:intersect]
-        sql << (opts[:intersect_all] ? \
-          " INTERSECT ALL #{intersect.sql}" : " INTERSECT #{intersect.sql}")
-      elsif except = opts[:except]
-        sql << (opts[:except_all] ? \
-          " EXCEPT ALL #{except.sql}" : " EXCEPT #{except.sql}")
-      end
-
+      return static_sql(opts[:sql]) if opts[:sql]
+      sql = 'SELECT'
+      select_clause_order.each{|x| send("select_#{x}_sql", sql, opts)}
       sql
     end
 
@@ -691,9 +673,7 @@ module Sequel
     #   :items__abc___a.to_column_ref(ds) #=> "items.abc AS a"
     #
     def symbol_to_column_ref(sym)
-      c_table, column, c_alias = split_symbol(sym)
-      qc = "#{"#{quote_identifier(c_table)}." if c_table}#{quote_identifier(column)}"
-      c_alias ? as_sql(qc, c_alias) : qc
+      literal_symbol(sym)
     end
 
     # Returns a copy of the dataset with no filters (HAVING or WHERE clause) applied.
@@ -707,7 +687,7 @@ module Sequel
     #   DB[:items].union(DB[:other_items]).sql
     #   #=> "SELECT * FROM items UNION SELECT * FROM other_items"
     def union(dataset, all = false)
-      clone(:union => dataset, :union_all => all)
+      compound_clone(:union, dataset, all)
     end
 
     # Returns a copy of the dataset with the distinct option.
@@ -733,9 +713,7 @@ module Sequel
     def update_sql(values = {}, opts = nil)
       opts = opts ? @opts.merge(opts) : @opts
 
-      if sql = opts[:sql]
-        return sql
-      end
+      return static_sql(opts[:sql]) if opts[:sql]
 
       if opts[:group]
         raise Error::InvalidOperation, "A grouped dataset cannot be updated"
@@ -764,6 +742,12 @@ module Sequel
       sql
     end
 
+    # Returns a copy of the dataset with the static SQL used.  This is useful if you want
+    # to keep the same row_proc/transform/graph, but change the SQL used to custom SQL.
+    def with_sql(sql)
+      clone(:sql=>sql)
+    end
+
     [:inner, :full_outer, :right_outer, :left_outer].each do |jtype|
       class_eval("def #{jtype}_join(*args, &block); join_table(:#{jtype}, *args, &block) end")
     end
@@ -788,7 +772,7 @@ module Sequel
     # Converts an array of column names into a comma seperated string of 
     # column names. If the array is empty, a wildcard (*) is returned.
     def column_list(columns)
-      if columns.empty?
+      if columns.blank?
         WILDCARD
       else
         m = columns.map do |i|
@@ -796,6 +780,11 @@ module Sequel
         end
         m.join(COMMA_SEPARATOR)
       end
+    end
+    
+    # Add the dataset to the list of compounds
+    def compound_clone(type, dataset, all)
+      clone(:compounds=>Array(@opts[:compounds]).map{|x| x.dup} + [[type, dataset, all]])
     end
     
     # Converts an array of expressions into a comma separated string of
@@ -817,7 +806,7 @@ module Sequel
         SQL::BooleanExpression.from_value_pairs(expr)
       when Array
         if String === expr[0]
-          filter_expr(expr.shift.gsub(QUESTION_MARK){literal(expr.shift)}.lit)
+          SQL::PlaceholderLiteralString.new(expr.shift, expr, true)
         else
           SQL::BooleanExpression.from_value_pairs(expr)
         end
@@ -830,7 +819,7 @@ module Sequel
       when TrueClass, FalseClass
         SQL::BooleanExpression.new(:NOOP, expr)
       when String
-        "(#{expr})".lit
+        LiteralString.new("(#{expr})")
       else
         raise(Error, 'Invalid filter argument')
       end
@@ -871,17 +860,173 @@ module Sequel
       "#{join_type.to_s.gsub('_', ' ').upcase} JOIN"
     end
 
+    # SQL fragment for Array.  Treats as an expression if an array of all two pairs, or as a SQL array otherwise.
+    def literal_array(v)
+      v.all_two_pairs? ? literal_expression(v.sql_expr) : array_sql(v)
+    end
+
+    # SQL fragment for BigDecimal
+    def literal_big_decimal(v)
+      d = v.to_s("F")
+      v.nan? || v.infinite? ?  "'#{d}'" : d
+    end
+
+    # SQL fragment for SQL::Blob
+    def literal_blob(v)
+      literal_string(v)
+    end
+
+    # SQL fragment for Dataset.  Does a subselect inside parantheses.
+    def literal_dataset(v)
+      "(#{subselect_sql(v)})"
+    end
+
+    # SQL fragment for Date, using the ISO8601 format.
+    def literal_date(v)
+      "'#{v}'"
+    end
+
+    # SQL fragment for DateTime, using the ISO8601 format.
+    def literal_datetime(v)
+      "'#{v}'"
+    end
+
+    # SQL fragment for SQL::Expression, result depends on the specific type of expression.
+    def literal_expression(v)
+      v.to_s(self)
+    end
+
+    # SQL fragment for false
+    def literal_false
+      BOOL_FALSE
+    end
+
+    # SQL fragment for Float
+    def literal_float(v)
+      v.to_s
+    end
+
+    # SQL fragment for Hash, treated as an expression
+    def literal_hash(v)
+      literal_expression(v.sql_expr)
+    end
+
+    # SQL fragment for Integer
+    def literal_integer(v)
+      v.to_s
+    end
+
+    # SQL fragmento for a type of object not handled by Dataset#literal.  Raises an error.  If a database specific type is allowed, this should be overriden in a subclass.
+    def literal_other(v)
+      raise Error, "can't express #{v.inspect} as a SQL literal"
+    end
+
+    # SQL fragment for String.  Doubles \ and ' by default.
+    def literal_string(v)
+      "'#{v.gsub(/\\/, "\\\\\\\\").gsub(/'/, "''")}'"
+    end
+
+    # SQL fragment for Symbol, treated as an identifier, possibly aliased and/or qualified.
+    def literal_symbol(v)
+      c_table, column, c_alias = split_symbol(v)
+      qc = "#{"#{quote_identifier(c_table)}." if c_table}#{quote_identifier(column)}"
+      c_alias ? as_sql(qc, c_alias) : qc
+    end
+
+    # SQL fragment for Time, uses the ISO8601 format.
+    def literal_time(v)
+      "'#{v.iso8601}'"
+    end
+
+    # SQL fragment for true.
+    def literal_true
+      BOOL_TRUE
+    end
+
     # Returns a qualified column name (including a table name) if the column
     # name isn't already qualified.
     def qualified_column_name(column, table)
       if Symbol === column 
         c_table, column, c_alias = split_symbol(column)
-        schema, table, t_alias = split_symbol(table) if Symbol === table
-        c_table ||= t_alias || table
+        unless c_table
+          case table
+          when Symbol
+            schema, table, t_alias = split_symbol(table)
+            t_alias ||= Sequel::SQL::QualifiedIdentifier.new(schema, table) if schema
+          when Sequel::SQL::AliasedExpression
+            t_alias = table.aliaz
+          end
+          c_table = t_alias || table
+        end
         ::Sequel::SQL::QualifiedIdentifier.new(c_table, column)
       else
         column
       end
+    end
+
+    # The order of methods to call to build the SELECT SQL statement
+    def select_clause_order
+      SELECT_CLAUSE_ORDER
+    end
+
+    # Modify the sql to add the columns selected
+    def select_columns_sql(sql, opts)
+      sql << " #{column_list(opts[:select])}"
+    end
+
+    # Modify the sql to add the DISTINCT modifier
+    def select_distinct_sql(sql, opts)
+      if distinct = opts[:distinct]
+        sql << " DISTINCT#{" ON (#{expression_list(distinct)})" unless distinct.empty?}"
+      end
+    end
+
+    # Modify the sql to add a dataset to the via an EXCEPT, INTERSECT, or UNION clause.
+    # This uses a subselect for the compound datasets used, because using parantheses doesn't
+    # work on all databases.  I consider this an ugly hack, but can't I think of a better default.
+    def select_compounds_sql(sql, opts)
+      return unless opts[:compounds]
+      opts[:compounds].each do |type, dataset, all|
+        compound_sql = subselect_sql(dataset)
+        compound_sql = "SELECT * FROM (#{compound_sql})" if dataset.opts[:compounds]
+        sql.replace("#{sql} #{type.to_s.upcase}#{' ALL' if all} #{compound_sql}")
+      end
+    end
+
+    # Modify the sql to add the list of tables to select FROM
+    def select_from_sql(sql, opts)
+      sql << " FROM #{source_list(opts[:from])}" if opts[:from]
+    end
+
+    # Modify the sql to add the expressions to GROUP BY
+    def select_group_sql(sql, opts)
+      sql << " GROUP BY #{expression_list(opts[:group])}" if opts[:group]
+    end
+
+    # Modify the sql to add the filter criteria in the HAVING clause
+    def select_having_sql(sql, opts)
+      sql << " HAVING #{literal(opts[:having])}" if opts[:having]
+    end
+
+    # Modify the sql to add the list of tables to JOIN to
+    def select_join_sql(sql, opts)
+      opts[:join].each{|j| sql << literal(j)} if opts[:join]
+    end
+
+    # Modify the sql to limit the number of rows returned and offset
+    def select_limit_sql(sql, opts)
+      sql << " LIMIT #{opts[:limit]}" if opts[:limit]
+      sql << " OFFSET #{opts[:offset]}" if opts[:offset]
+    end
+
+    # Modify the sql to add the expressions to ORDER BY
+    def select_order_sql(sql, opts)
+      sql << " ORDER BY #{expression_list(opts[:order])}" if opts[:order]
+    end
+
+    # Modify the sql to add the filter criteria in the WHERE clause
+    def select_where_sql(sql, opts)
+      sql << " WHERE #{literal(opts[:where])}" if opts[:where]
     end
 
     # Converts an array of source names into into a comma separated list.
@@ -920,7 +1065,19 @@ module Sequel
       end
     end
 
-    # SQL fragement specifying a table name.
+    # SQL to use if this dataset uses static SQL.  Since static SQL
+    # can be a PlaceholderLiteralString in addition to a String,
+    # we literalize nonstrings.
+    def static_sql(sql)
+      sql.is_a?(String) ? sql : literal(sql)
+    end
+
+    # SQL fragment for a subselect using the given database's SQL.
+    def subselect_sql(ds)
+      ds.sql
+    end
+
+    # SQL fragment specifying a table name.
     def table_ref(t)
       case t
       when Dataset

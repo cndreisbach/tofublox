@@ -1,3 +1,4 @@
+require 'sequel_core/adapters/utils/date_format'
 require 'win32ole'
 
 module Sequel
@@ -32,10 +33,6 @@ module Sequel
         handle
       end
       
-      def disconnect
-        @pool.disconnect {|conn| conn.Close}
-      end
-    
       def dataset(opts = nil)
         ADO::Dataset.new(self, opts)
       end
@@ -49,25 +46,22 @@ module Sequel
         end
       end
       alias_method :do, :execute
+
+      private
+
+      def disconnect_connection(conn)
+        conn.Close
+      end
     end
     
     class Dataset < Sequel::Dataset
-      def literal(v)
-        case v
-        when Time
-          literal(v.iso8601)
-        when Date, DateTime
-          literal(v.to_s)
-        else
-          super
-        end
-      end
+      include Dataset::SQLStandardDateFormat
 
       def fetch_rows(sql)
         execute(sql) do |s|
           @columns = s.Fields.extend(Enumerable).map do |column|
             name = column.Name.empty? ? '(no column name)' : column.Name
-            name.to_sym
+            output_identifier(name)
           end
           
           unless s.eof

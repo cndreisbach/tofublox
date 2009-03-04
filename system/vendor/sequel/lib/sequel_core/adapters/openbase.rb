@@ -15,11 +15,6 @@ module Sequel
         )
       end
       
-      def disconnect
-        # would this work?
-        @pool.disconnect {|c| c.disconnect}
-      end
-    
       def dataset(opts = nil)
         OpenBase::Dataset.new(self, opts)
       end
@@ -33,24 +28,19 @@ module Sequel
         end
       end
       alias_method :do, :execute
+
+      private
+
+      def disconnect_connection(c)
+        c.disconnect
+      end
     end
     
     class Dataset < Sequel::Dataset
-      def literal(v)
-        case v
-        when Time
-          literal(v.iso8601)
-        when Date, DateTime
-          literal(v.to_s)
-        else
-          super
-        end
-      end
-
       def fetch_rows(sql)
         execute(sql) do |result|
           begin
-            @columns = result.column_infos.map {|c| c.name.to_sym}
+            @columns = result.column_infos.map{|c| output_identifier(c.name)}
             result.each do |r|
               row = {}
               r.each_with_index {|v, i| row[@columns[i]] = v}

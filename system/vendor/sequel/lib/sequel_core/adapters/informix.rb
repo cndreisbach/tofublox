@@ -1,3 +1,4 @@
+require 'sequel_core/adapters/utils/unsupported'
 require 'informix'
 
 module Sequel
@@ -5,19 +6,9 @@ module Sequel
     class Database < Sequel::Database
       set_adapter_scheme :informix
       
-      # AUTO_INCREMENT = 'IDENTITY(1,1)'.freeze
-      # 
-      # def auto_increment_sql
-      #   AUTO_INCREMENT
-      # end
-      
       def connect(server)
         opts = server_opts(server)
         ::Informix.connect(opts[:database], opts[:user], opts[:password])
-      end
-      
-      def disconnect
-        @pool.disconnect{|c| c.close}
       end
     
       def dataset(opts = nil)
@@ -36,41 +27,48 @@ module Sequel
         synchronize(opts[:server]){|c| yield c.cursor(sql)}
       end
       alias_method :query, :execute
+      
+      private
+
+      def disconnect_connection(c)
+        c.close
+      end
     end
     
     class Dataset < Sequel::Dataset
-      def literal(v)
-        case v
-        when Time
-          literal(v.iso8601)
-        when Date, DateTime
-          literal(v.to_s)
-        else
-          super
-        end
-      end
+      include UnsupportedIntersectExcept
 
-      def select_sql(opts = nil)
-        limit = opts.delete(:limit)
-        offset = opts.delete(:offset)
-        sql = super
-        if limit
-          limit = "FIRST #{limit}"
-          offset = offset ? "SKIP #{offset}" : ""
-          sql.sub!(/^select /i,"SELECT #{offset} #{limit} ")
-        end
-        sql
-      end
-      
+      SELECT_CLAUSE_ORDER = %w'limit distinct columns from join where having group compounds order'.freeze
+
       def fetch_rows(sql, &block)
         execute(sql) do |cursor|
           begin
-            cursor.open.each_hash(&block)
+            col_map = nil
+            cursor.open.each_hash do |h|
+              unless col_map
+                col_map = {}
+                @columns = h.keys.map{|k| col_map[k] = output_identifier(k)}
+              end
+              h2 = {}
+              h.each{|k,v| h2[col_map[k]||k] = v}
+              yield h2
+            end
           ensure
             cursor.drop
           end
         end
         self
+      end
+
+      private
+
+      def select_clause_order
+        SELECT_CLAUSE_ORDER
+      end
+
+      def select_limit_sql(sql, opts)
+        sql << " SKIP #{opts[:offset]}" if opts[:offset]
+        sql << " FIRST #{opts[:limit]}" if opts[:limit]
       end
     end
   end

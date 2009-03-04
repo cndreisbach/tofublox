@@ -120,6 +120,39 @@ describe Sequel::Model do
     atts.should == [:xx, :yy]
   end
   
+  specify "should respect allow_missing option when using multiple attributes" do
+    o = @c.new
+    def o.xx
+      self[:xx]
+    end
+    def o.yy
+      self[:yy]
+    end
+    vals = nil
+    atts = nil
+    @c.validates_each([:xx, :yy], :allow_missing=>true){|obj,a,v| atts=a; vals=v}
+
+    o.values[:xx] = 1
+    o.valid?
+    vals.should == [1,nil]
+    atts.should == [:xx, :yy]
+
+    vals = nil
+    atts = nil
+    o.values.clear
+    o.values[:yy] = 2
+    o.valid?
+    vals.should == [nil, 2]
+    atts.should == [:xx, :yy]
+
+    vals = nil
+    atts = nil
+    o.values.clear
+    o.valid?.should == true
+    vals.should == nil
+    atts.should == nil
+  end
+  
   specify "should overwrite existing validation with the same tag and attribute" do
     @c.validates_each(:xx, :xx, :tag=>:low) {|o, a, v| o.xxx; o.errors[a] << 'too low' if v < 50}
     @c.validates_each(:yy, :yy) {|o, a, v| o.yyy; o.errors[a] << 'too low' if v < 50}
@@ -243,6 +276,18 @@ describe Sequel::Model do
     @m.should_not be_valid
   end
 
+  specify "should validate acceptance_of with allow_missing => true" do
+    @c.validates_acceptance_of :value, :allow_missing => true
+    @m.should be_valid
+  end
+
+  specify "should validate acceptance_of with allow_missing => true and allow_nil => false" do
+    @c.validates_acceptance_of :value, :allow_missing => true, :allow_nil => false
+    @m.should be_valid
+    @m.value = nil
+    @m.should_not be_valid
+  end
+
   specify "should validate acceptance_of with if => true" do
     @c.validates_acceptance_of :value, :if => :dont_skip
     @m.value = '0'
@@ -300,6 +345,16 @@ describe Sequel::Model do
     @m.should be_valid
   end
 
+  specify "should validate confirmation_of with allow_missing => true" do
+    @c.send(:attr_accessor, :value_confirmation)
+    @c.validates_acceptance_of :value, :allow_missing => true
+    @m.should be_valid
+    @m.value_confirmation = 'blah'
+    @m.should be_valid
+    @m.value = nil
+    @m.should_not be_valid
+  end
+
   specify "should validate format_of" do
     @c.validates_format_of :value, :with => /.+_.+/
     @m.value = 'abc_'
@@ -327,6 +382,13 @@ describe Sequel::Model do
     @m.should be_valid
   end
   
+  specify "should validate format_of with allow_missing => true" do
+    @c.validates_format_of :value, :allow_missing => true, :with=>/./
+    @m.should be_valid
+    @m.value = nil
+    @m.should_not be_valid
+  end
+
   specify "should validate length_of with maximum" do
     @c.validates_length_of :value, :maximum => 5
     @m.should_not be_valid
@@ -384,6 +446,13 @@ describe Sequel::Model do
 
     @m.value = 'a'
     @m.should be_valid
+  end
+
+  specify "should validate length_of with allow_missing => true" do
+    @c.validates_length_of :value, :allow_missing => true, :minimum => 5
+    @m.should be_valid
+    @m.value = nil
+    @m.should_not be_valid
   end
 
   specify "should allow multiple calls to validates_length_of with different options without overwriting" do
@@ -450,6 +519,13 @@ describe Sequel::Model do
     @m.should be_valid
   end
 
+  specify "should validate numericality_of with allow_missing => true" do
+    @c.validates_numericality_of :value, :allow_missing => true
+    @m.should be_valid
+    @m.value = nil
+    @m.should_not be_valid
+  end
+
   specify "should validate presence_of" do
     @c.validates_presence_of :value
     @m.should_not be_valid
@@ -464,6 +540,50 @@ describe Sequel::Model do
     @m.value = false
     @m.should be_valid
   end
+  
+  specify "should validate inclusion_of with an array" do
+    @c.validates_inclusion_of :value, :in => [1,2]
+    @m.should_not be_valid
+    @m.value = 1
+    @m.should be_valid
+    @m.value = 1.5
+    @m.should_not be_valid
+    @m.value = 2
+    @m.should be_valid    
+    @m.value = 3
+    @m.should_not be_valid 
+  end
+  
+  specify "should validate inclusion_of with a range" do
+    @c.validates_inclusion_of :value, :in => 1..4
+    @m.should_not be_valid
+    @m.value = 1
+    @m.should be_valid
+    @m.value = 1.5
+    @m.should be_valid
+    @m.value = 0
+    @m.should_not be_valid
+    @m.value = 5
+    @m.should_not be_valid    
+  end
+  
+  specify "should raise an error if inclusion_of doesn't receive a valid :in option" do
+    lambda {
+      @c.validates_inclusion_of :value
+    }.should raise_error(ArgumentError)
+    
+    lambda {
+      @c.validates_inclusion_of :value, :in => 1
+    }.should raise_error(ArgumentError)
+  end
+  
+  specify "should raise an error if inclusion_of handles :allow_nil too" do
+    @c.validates_inclusion_of :value, :in => 1..4, :allow_nil => true
+    @m.value = nil
+    @m.should be_valid
+    @m.value = 0
+    @m.should_not be_valid
+  end
 
   specify "should validate presence_of with if => true" do
     @c.validates_presence_of :value, :if => :dont_skip
@@ -473,6 +593,13 @@ describe Sequel::Model do
   specify "should validate presence_of with if => false" do
     @c.validates_presence_of :value, :if => :skip
     @m.should be_valid
+  end
+
+  specify "should validate presence_of with allow_missing => true" do
+    @c.validates_presence_of :value, :allow_missing => true
+    @m.should be_valid
+    @m.value = nil
+    @m.should_not be_valid
   end
 
   specify "should validate uniqueness_of with if => true" do
@@ -489,10 +616,11 @@ describe Sequel::Model do
     @m.should be_valid
   end
   
-  specify "should validate with :if => block" do
-    @c.validates_presence_of :value, :if => proc {false}
-    
+  specify "should validate uniqueness_of with allow_missing => true" do
+    @c.validates_uniqueness_of :value, :allow_missing => true
     @m.should be_valid
+    @m.value = nil
+    @m.should_not be_valid
   end
 end
 
@@ -631,10 +759,6 @@ describe Sequel::Model, "Validations" do
     @person.valid?.should be_true
   end
   
-  # it "should allow for :with_exactly => /[a-zA-Z]/, which wraps the supplied regex with ^<regex>$" do
-  #   pending("TODO: Add this option to Validatable#validates_format_of")
-  # end
-
   it "should validate length of column" do
     class ::Person < Sequel::Model
       validations.clear
@@ -664,6 +788,42 @@ describe Sequel::Model, "Validations" do
     @person.last_name   = "1234567890123456789012345678901"
     @person.initials    = "LC"
     @person.middle_name = "Will"
+    @person.should be_valid
+  end
+  
+  it "should validate that a column doesn't have a string value" do
+    p = Class.new(Sequel::Model)
+    p.class_eval do
+      columns :age, :price, :confirmed
+      self.raise_on_typecast_failure = false
+      validates_not_string :age
+      validates_not_string :confirmed
+      validates_not_string :price, :message=>'is not valid'
+      @db_schema = {:age=>{:type=>:integer}}
+    end
+    
+    @person = p.new
+    @person.should be_valid
+
+    @person.confirmed = 't'
+    @person.should_not be_valid
+    @person.errors.full_messages.should == ['confirmed is a string']
+    @person.confirmed = true
+    @person.should be_valid
+
+    @person.age = 'a'
+    @person.should_not be_valid
+    @person.errors.full_messages.should == ['age is not a valid integer']
+    @person.db_schema[:age][:type] = :datetime
+    @person.should_not be_valid
+    @person.errors.full_messages.should == ['age is not a valid datetime']
+    @person.age = 20
+    @person.should be_valid
+
+    @person.price = 'a'
+    @person.should_not be_valid
+    @person.errors.full_messages.should == ['price is not valid']
+    @person.price = 20
     @person.should be_valid
   end
   
@@ -897,7 +1057,7 @@ describe "Model#save" do
   end
   
   specify "should raise error if validations fail and raise_on_save_faiure is true" do
-    proc{@m.save}.should raise_error(Sequel::Error)
+    proc{@m.save}.should raise_error(Sequel::ValidationFailed)
   end
   
   specify "should return nil if validations fail and raise_on_save_faiure is false" do

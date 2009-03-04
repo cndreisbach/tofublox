@@ -14,6 +14,9 @@ module Sequel
         when 'mssql'
           require 'sequel_core/adapters/shared/mssql'
           extend Sequel::MSSQL::DatabaseMethods
+        when 'progress'
+          require 'sequel_core/adapters/shared/progress'
+          extend Sequel::Progress::DatabaseMethods
         end
       end
 
@@ -37,10 +40,6 @@ module Sequel
         conn
       end      
 
-      def disconnect
-        @pool.disconnect {|c| c.disconnect}
-      end
-    
       def dataset(opts = nil)
         ODBC::Dataset.new(self, opts)
       end
@@ -63,6 +62,35 @@ module Sequel
         synchronize(opts[:server]){|conn| conn.do(sql)}
       end
       alias_method :do, :execute_dui
+
+      # Support single level transactions on ODBC
+      def transaction(server=nil)
+        synchronize(server) do |conn|
+          return yield(conn) if @transactions.include?(Thread.current)
+          log_info(begin_transaction_sql)
+          conn.do(begin_transaction_sql)
+          begin
+            @transactions << Thread.current
+            yield(conn)
+          rescue ::Exception => e
+            log_info(rollback_transaction_sql)
+            conn.do(rollback_transaction_sql)
+            transaction_error(e)
+          ensure
+            unless e
+              log_info(commit_transaction_sql)
+              conn.do(commit_transaction_sql)
+            end
+            @transactions.delete(Thread.current)
+          end
+        end
+      end
+
+      private
+
+      def disconnect_connection(c)
+        c.disconnect
+      end
     end
     
     class Dataset < Sequel::Dataset
@@ -72,25 +100,6 @@ module Sequel
       ODBC_TIMESTAMP_AFTER_SECONDS =
         ODBC_TIMESTAMP_FORMAT.index( '%S' ).succ - ODBC_TIMESTAMP_FORMAT.length
       ODBC_DATE_FORMAT = "{d '%Y-%m-%d'}".freeze
-      
-      def literal(v)
-        case v
-        when true
-          BOOL_TRUE
-        when false
-          BOOL_FALSE
-        when Time, DateTime
-          formatted = v.strftime(ODBC_TIMESTAMP_FORMAT)
-          usec = (Time === v ? v.usec : (v.sec_fraction * 86400000000))
-          formatted.insert(ODBC_TIMESTAMP_AFTER_SECONDS, ".#{(usec.to_f/1000).round}") if usec >= 1000
-          formatted
-        when Date
-          v.strftime(ODBC_DATE_FORMAT)
-        else
-          super
-        end
-      end
-
       UNTITLED_COLUMN = 'untitled_%d'.freeze
 
       def fetch_rows(sql, &block)
@@ -101,7 +110,7 @@ module Sequel
               if (n = c.name).empty?
                 n = UNTITLED_COLUMN % (untitled_count += 1)
               end
-              n.to_sym
+              output_identifier(n)
             end
             rows = s.fetch_all
             rows.each {|row| yield hash_row(row)} if rows
@@ -113,15 +122,7 @@ module Sequel
       end
       
       private
-      
-      def hash_row(row)
-        hash = {}
-        row.each_with_index do |v, idx|
-          hash[@columns[idx]] = convert_odbc_value(v)
-        end
-        hash
-      end
-      
+
       def convert_odbc_value(v)
         # When fetching a result set, the Ruby ODBC driver converts all ODBC 
         # SQL types to an equivalent Ruby type; with the exception of
@@ -140,6 +141,39 @@ module Sequel
         else
           v
         end
+      end
+      
+      def hash_row(row)
+        hash = {}
+        row.each_with_index do |v, idx|
+          hash[@columns[idx]] = convert_odbc_value(v)
+        end
+        hash
+      end
+      
+      def literal_date(v)
+        v.strftime(ODBC_DATE_FORMAT)
+      end
+      
+      def literal_datetime(v)
+        formatted = v.strftime(ODBC_TIMESTAMP_FORMAT)
+        usec = v.sec_fraction * 86400000000
+        formatted.insert(ODBC_TIMESTAMP_AFTER_SECONDS, ".#{(usec.to_f/1000).round}") if usec >= 1000
+        formatted
+      end
+      
+      def literal_false
+        BOOL_FALSE
+      end
+      
+      def literal_true
+        BOOL_TRUE
+      end
+
+      def literal_time(v)
+        formatted = v.strftime(ODBC_TIMESTAMP_FORMAT)
+        formatted.insert(ODBC_TIMESTAMP_AFTER_SECONDS, ".#{(v.usec.to_f/1000).round}") if usec >= 1000
+        formatted
       end
     end
   end

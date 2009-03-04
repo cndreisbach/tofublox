@@ -70,6 +70,7 @@ module Sequel
           conn = super(conn)
           conn.extend(Sequel::JDBC::Postgres::AdapterMethods)
           conn.db = self
+          conn.apply_connection_settings
           conn
         end
         
@@ -90,17 +91,9 @@ module Sequel
           ps
         end
         
-        # Convert Java::JavaSql::Timestamps correctly, and handle SQL::Blobs
-        # correctly.
-        def literal(v)
-          case v
-          when SQL::Blob
-            "'#{v.gsub(/[\000-\037\047\134\177-\377]/){|b| "\\#{ b[0].to_s(8).rjust(3, '0') }"}}'"
-          when Java::JavaSql::Timestamp
-            "TIMESTAMP #{literal(v.to_s)}"
-          else
-            super
-          end
+        # Literalize strings similar to the native postgres adapter
+        def literal_string(v)
+          db.synchronize{|c| "'#{c.escape_string(v)}'"}
         end
       end
     end

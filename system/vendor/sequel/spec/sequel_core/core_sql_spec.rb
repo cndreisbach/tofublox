@@ -124,12 +124,23 @@ context "String#lit" do
     Sequel::Database.new[:t].update_sql(:stamp => "NOW()".expr).should == \
       "UPDATE t SET stamp = NOW()"
   end
+
+  specify "should return a PlaceholderLiteralString object if args are given" do
+    a = 'DISTINCT ?'.lit(:a)
+    a.should be_a_kind_of(Sequel::SQL::PlaceholderLiteralString)
+    ds = MockDatabase.new.dataset
+    ds.literal(a).should == 'DISTINCT a'
+    ds.quote_identifiers = true
+    ds.literal(a).should == 'DISTINCT "a"'
+  end
 end
 
-context "String#to_blob" do
+context "String#to_blob and #to_sequel_blob" do
   specify "should return a Blob object" do
     'xyz'.to_blob.should be_a_kind_of(::Sequel::SQL::Blob)
     'xyz'.to_blob.should == 'xyz'
+    'xyz'.to_sequel_blob.should be_a_kind_of(::Sequel::SQL::Blob)
+    'xyz'.to_sequel_blob.should == 'xyz'
   end
 
   specify "should retain binary data" do
@@ -161,7 +172,7 @@ context "#desc" do
   end
 
   specify "should format a DESC clause for a function" do
-    :avg[:test].desc.to_s(@ds).should == 'avg(test) DESC'
+    :avg.sql_function(:test).desc.to_s(@ds).should == 'avg(test) DESC'
   end
 end
 
@@ -177,7 +188,7 @@ context "#asc" do
   end
 
   specify "should format a ASC clause for a function" do
-    :avg[:test].asc.to_s(@ds).should == 'avg(test) ASC'
+    :avg.sql_function(:test).asc.to_s(@ds).should == 'avg(test) ASC'
   end
 end
 
@@ -193,7 +204,7 @@ context "#as" do
   end
 
   specify "should format a AS clause for a function" do
-    :avg[:test].as(:avg).to_s(@ds).should == 'avg(test) AS avg'
+    :avg.sql_function(:test).as(:avg).to_s(@ds).should == 'avg(test) AS avg'
   end
   
   specify "should format a AS clause for a literal value" do
@@ -206,7 +217,7 @@ context "Column references" do
     @c = Class.new(Sequel::Dataset) do
       def quoted_identifier(c); "`#{c}`"; end
     end
-    @ds = @c.new(nil)
+    @ds = @c.new(MockDatabase.new)
     @ds.quote_identifiers = true
   end
   
@@ -222,26 +233,39 @@ context "Column references" do
   end
   
   specify "should be quoted properly in SQL functions" do
-    @ds.literal(:avg[:xyz]).should == "avg(`xyz`)"
-    @ds.literal(:avg[:xyz, 1]).should == "avg(`xyz`, 1)"
-    @ds.literal(:avg[:xyz].as(:a)).should == "avg(`xyz`) AS `a`"
+    @ds.literal(:avg.sql_function(:xyz)).should == "avg(`xyz`)"
+    @ds.literal(:avg.sql_function(:xyz, 1)).should == "avg(`xyz`, 1)"
+    @ds.literal(:avg.sql_function(:xyz).as(:a)).should == "avg(`xyz`) AS `a`"
   end
 
   specify "should be quoted properly in ASC/DESC clauses" do
     @ds.literal(:xyz.asc).should == "`xyz` ASC"
-    @ds.literal(:avg[:xyz, 1].desc).should == "avg(`xyz`, 1) DESC"
+    @ds.literal(:avg.sql_function(:xyz, 1).desc).should == "avg(`xyz`, 1) DESC"
   end
   
   specify "should be quoted properly in a cast function" do
-    @ds.literal(:x.cast_as(:integer)).should == "cast(`x` AS integer)"
-    @ds.literal(:x__y.cast_as('varchar(20)')).should == "cast(`x`.`y` AS varchar(20))"
+    @ds.literal(:x.cast_as(:integer)).should == "CAST(`x` AS integer)"
+    @ds.literal(:x__y.cast_as('varchar(20)')).should == "CAST(`x`.`y` AS varchar(20))"
   end
 end
 
 context "Blob" do
-  specify "#to_blob should return self" do
+  specify "#to_blob and #to_sequel_blob should return self" do
     blob = "x".to_blob
     blob.to_blob.object_id.should == blob.object_id
+    blob = "x".to_sequel_blob
+    blob.to_sequel_blob.object_id.should == blob.object_id
+  end
+end
+
+if RUBY_VERSION < '1.9.0'
+  context "Symbol#[]" do
+    specify "should format an SQL Function" do
+      ds = Sequel::Dataset.new(nil)
+      ds.literal(:xyz[]).should == 'xyz()'
+      ds.literal(:xyz[1]).should == 'xyz(1)'
+      ds.literal(:xyz[1, 2, :abc[3]]).should == 'xyz(1, 2, abc(3))'
+    end
   end
 end
 
@@ -259,12 +283,17 @@ context "Symbol#*" do
     :xyz.*(3).to_s(@ds).should == '(xyz * 3)'
     :abc.*(5).to_s(@ds).should == '(abc * 5)'
   end
+
+  specify "should support qualified symbols if no argument" do
+    :xyz__abc.*.to_s(@ds).should == 'xyz.abc.*'
+  end
 end
 
 context "Symbol" do
   before do
     @ds = Sequel::Dataset.new(nil)
     @ds.quote_identifiers = true
+    @ds.upcase_identifiers = true
   end
 
   specify "#identifier should format an identifier" do
@@ -276,11 +305,12 @@ context "Symbol" do
   end
 
   specify "should be able to qualify an identifier" do
-    @ds.literal(:xyz.identifier.qualify(:xyz__abc)).should == '"XYZ__ABC"."XYZ"'
+    @ds.literal(:xyz.identifier.qualify(:xyz__abc)).should == '"XYZ"."ABC"."XYZ"'
   end
 
   specify "should be able to specify a schema.table.column" do
-    @ds.literal(:column.qualify(:table__name.qualify(:schema))).should == '"SCHEMA"."TABLE__NAME"."COLUMN"'
+    @ds.literal(:column.qualify(:table.qualify(:schema))).should == '"SCHEMA"."TABLE"."COLUMN"'
+    @ds.literal(:column.qualify(:table__name.identifier.qualify(:schema))).should == '"SCHEMA"."TABLE__NAME"."COLUMN"'
   end
 end
 
@@ -322,42 +352,63 @@ end
 
 context "Symbol" do
   setup do
-    @ds = Sequel::Dataset.new(nil)
+    @ds = Sequel::Dataset.new(MockDatabase.new)
   end
   
   specify "should support upper case outer functions" do
-    :COUNT['1'].to_s(@ds).should == "COUNT('1')"
+    :COUNT.sql_function('1').to_s(@ds).should == "COUNT('1')"
   end
   
   specify "should inhibit string literalization" do
     db = Sequel::Database.new
     ds = db[:t]
-    ds.select(:COUNT['1']).sql.should == "SELECT COUNT('1') FROM t"
+    ds.select(:COUNT.sql_function('1')).sql.should == "SELECT COUNT('1') FROM t"
   end
   
   specify "should support cast method and its cast_as alias" do
-    :abc.cast_as(:integer).to_s(@ds).should == "cast(abc AS integer)"
-    :abc.cast(:integer).to_s(@ds).should == "cast(abc AS integer)"
+    :abc.cast_as(:integer).to_s(@ds).should == "CAST(abc AS integer)"
+    :abc.cast(:integer).to_s(@ds).should == "CAST(abc AS integer)"
   end
   
   specify "should support cast_numeric and cast_string" do
     x = :abc.cast_numeric
     x.should be_a_kind_of(Sequel::SQL::NumericExpression)
-    x.to_s(@ds).should == "cast(abc AS integer)"
+    x.to_s(@ds).should == "CAST(abc AS integer)"
 
     x = :abc.cast_numeric(:real)
     x.should be_a_kind_of(Sequel::SQL::NumericExpression)
-    x.to_s(@ds).should == "cast(abc AS real)"
+    x.to_s(@ds).should == "CAST(abc AS real)"
 
     x = :abc.cast_string
     x.should be_a_kind_of(Sequel::SQL::StringExpression)
-    x.to_s(@ds).should == "cast(abc AS text)"
+    x.to_s(@ds).should == "CAST(abc AS varchar(255))"
 
     x = :abc.cast_string(:varchar)
     x.should be_a_kind_of(Sequel::SQL::StringExpression)
-    x.to_s(@ds).should == "cast(abc AS varchar)"
+    x.to_s(@ds).should == "CAST(abc AS varchar)"
   end
   
+  specify "should allow database independent types when casting" do
+    m = MockDatabase.new
+    m.instance_eval do
+       def type_literal_base(column)
+         return :foo if column[:type] == Integer
+         return :bar if column[:type] == String
+         column
+       end
+    end
+    @ds2 = Sequel::Dataset.new(m)
+    :abc.cast_as(Integer).to_s(@ds).should == "CAST(abc AS integer)"
+    :abc.cast_as(Integer).to_s(@ds2).should == "CAST(abc AS foo)"
+    :abc.cast(String).to_s(@ds).should == "CAST(abc AS varchar(255))"
+    :abc.cast(String).to_s(@ds2).should == "CAST(abc AS bar)"
+    :abc.cast(String).to_s(@ds2).should == "CAST(abc AS bar)"
+    :abc.cast_string.to_s(@ds2).should == "CAST(abc AS bar)"
+    :abc.cast_string(Integer).to_s(@ds2).should == "CAST(abc AS foo)"
+    :abc.cast_numeric.to_s(@ds2).should == "CAST(abc AS foo)"
+    :abc.cast_numeric(String).to_s(@ds2).should == "CAST(abc AS bar)"
+  end
+
   specify "should support subscript access using | operator" do
     (:abc|1).to_s(@ds).should == 'abc[1]'
     (:abc|[1]).to_s(@ds).should == 'abc[1]'
@@ -464,14 +515,14 @@ end
 
 context "Sequel::SQL::Function#==" do
   specify "should be true for functions with the same name and arguments, false otherwise" do
-    a = :date[:t]
-    b = :date[:t]
+    a = :date.sql_function(:t)
+    b = :date.sql_function(:t)
     a.should == b
     (a == b).should == true
-    c = :date[:c]
+    c = :date.sql_function(:c)
     a.should_not == c
     (a == c).should == false
-    d = :time[:c]
+    d = :time.sql_function(:c)
     a.should_not == d
     c.should_not == d
     (a == d).should == false

@@ -12,7 +12,6 @@ unless defined?(MYSQL_SOCKET_FILE)
 end
 
 MYSQL_URI = URI.parse(MYSQL_DB.uri)
-MYSQL_DB_NAME = (m = /\/(.*)/.match(MYSQL_URI.path)) && m[1]
 
 MYSQL_DB.create_table! :items do
   text :name
@@ -33,6 +32,29 @@ def logger.method_missing(m, msg)
   MYSQL_DB.sqls << msg
 end
 MYSQL_DB.logger = logger
+
+if MYSQL_DB.class.adapter_scheme == :do
+  SQL_BEGIN = 'Transaction.begin'
+  SQL_ROLLBACK = 'Transaction.rollback'
+  SQL_COMMIT = 'Transaction.commit'
+else
+  SQL_BEGIN = 'BEGIN'
+  SQL_ROLLBACK = 'ROLLBACK'
+  SQL_COMMIT = 'COMMIT'
+end
+
+context "MySQL", '#create_table' do
+  setup do
+    @db = MYSQL_DB
+  end
+  after(:each) do
+    @db.drop_table :dolls
+  end
+  specify "should allow to specify options for MySQL" do
+    @db.create_table(:dolls, :engine => 'MyISAM', :charset => 'latin2') { text :name }
+    @db.sqls.should == ["CREATE TABLE dolls (name text) ENGINE=MyISAM DEFAULT CHARSET=latin2"]
+  end
+end
 
 context "A MySQL database" do
   setup do
@@ -143,13 +165,13 @@ context "A MySQL dataset" do
     @d.select('COUNT(*)'.lit).sql.should == \
       'SELECT COUNT(*) FROM `items`'
 
-    @d.select(:max[:value]).sql.should == \
+    @d.select(:max.sql_function(:value)).sql.should == \
       'SELECT max(`value`) FROM `items`'
       
-    @d.select(:NOW[]).sql.should == \
+    @d.select(:NOW.sql_function).sql.should == \
     'SELECT NOW() FROM `items`'
 
-    @d.select(:max[:items__value]).sql.should == \
+    @d.select(:max.sql_function(:items__value)).sql.should == \
       'SELECT max(`items`.`value`) FROM `items`'
 
     @d.order(:name.desc).sql.should == \
@@ -164,13 +186,13 @@ context "A MySQL dataset" do
     @d.select('max(items.`name`) AS `max_name`'.lit).sql.should == \
       'SELECT max(items.`name`) AS `max_name` FROM `items`'
       
-    @d.select(:test[:abc, 'hello']).sql.should == \
+    @d.select(:test.sql_function(:abc, 'hello')).sql.should == \
       "SELECT test(`abc`, 'hello') FROM `items`"
 
-    @d.select(:test[:abc__def, 'hello']).sql.should == \
+    @d.select(:test.sql_function(:abc__def, 'hello')).sql.should == \
       "SELECT test(`abc`.`def`, 'hello') FROM `items`"
 
-    @d.select(:test[:abc__def, 'hello'].as(:x2)).sql.should == \
+    @d.select(:test.sql_function(:abc__def, 'hello').as(:x2)).sql.should == \
       "SELECT test(`abc`.`def`, 'hello') AS `x2` FROM `items`"
 
     @d.insert_sql(:value => 333).should == \
@@ -221,7 +243,7 @@ context "A MySQL dataset" do
       end
     end.should raise_error(Interrupt)
 
-    MYSQL_DB.sqls.should == ['BEGIN', "INSERT INTO items (name) VALUES ('abc')", 'ROLLBACK']
+    MYSQL_DB.sqls.should == [SQL_BEGIN, "INSERT INTO items (name) VALUES ('abc')", SQL_ROLLBACK]
   end
 
   specify "should handle returning inside of the block by committing" do
@@ -233,7 +255,7 @@ context "A MySQL dataset" do
       end
     end
     MYSQL_DB.ret_commit
-    MYSQL_DB.sqls.should == ['BEGIN', "INSERT INTO items (name) VALUES ('abc')", 'COMMIT']
+    MYSQL_DB.sqls.should == [SQL_BEGIN, "INSERT INTO items (name) VALUES ('abc')", SQL_COMMIT]
   end
   
   specify "should support regexps" do
@@ -264,9 +286,9 @@ context "MySQL datasets" do
     market = 'ICE'
     ack_stamp = Time.now - 15 * 60 # 15 minutes ago
     @d.query do
-      select :market, :minute[:from_unixtime[:ack]].as(:minute)
-      where {(:ack > ack_stamp) & {:market => market}}
-      group_by :minute[:from_unixtime[:ack]]
+      select :market, :minute.sql_function(:from_unixtime.sql_function(:ack)).as(:minute)
+      where {(:ack.sql_number > ack_stamp) & {:market => market}}
+      group_by :minute.sql_function(:from_unixtime.sql_function(:ack))
     end.sql.should == \
       "SELECT `market`, minute(from_unixtime(`ack`)) AS `minute` FROM `orders` WHERE ((`ack` > #{@d.literal(ack_stamp)}) AND (`market` = 'ICE')) GROUP BY minute(from_unixtime(`ack`))"
   end
@@ -296,21 +318,6 @@ context "MySQL datasets" do
   end
 end
 
-# # Commented out because it was causing subsequent examples to fail for some reason
-# context "Simple stored procedure test" do
-#   setup do
-#     # Create a simple stored procedure but drop it first if there
-#     MYSQL_DB.execute("DROP PROCEDURE IF EXISTS sp_get_server_id;")
-#     MYSQL_DB.execute("CREATE PROCEDURE sp_get_server_id() SQL SECURITY DEFINER SELECT @@SERVER_ID as server_id;")
-#   end
-# 
-#   specify "should return the server-id via a stored procedure call" do
-#     @server_id = MYSQL_DB["SELECT @@SERVER_ID as server_id;"].first[:server_id] # grab the server_id via a simple query
-#     @server_id_by_sp = MYSQL_DB["CALL sp_get_server_id();"].first[:server_id]
-#     @server_id_by_sp.should == @server_id  # compare it to output from stored procedure
-#   end
-# end
-# 
 context "MySQL join expressions" do
   setup do
     @ds = MYSQL_DB[:nodes]
@@ -444,7 +451,60 @@ context "A MySQL database" do
   specify "should support drop_index" do
     @db.drop_index :test2, :value
   end
+  
+  specify "should support add_foreign_key" do
+    @db.alter_table :test2 do
+      add_foreign_key :value2, :test2, :key=>:value
+    end
+    @db[:test2].columns.should == [:name, :value, :zyx, :ert, :xyz, :value2]
+  end
 end  
+
+context "A MySQL database", "with table options" do
+  before(:all) do
+    @options = {}
+    @options[:engine] = 'MyISAM'
+    @options[:charset] = 'latin2'
+    @options[:collate] = 'swedish'
+    
+    Sequel::MySQL.default_engine = 'InnoDB'
+    Sequel::MySQL.default_charset = 'utf8'
+    Sequel::MySQL.default_collate = 'utf8'    
+    
+    @db = MYSQL_DB
+    @g = Sequel::Schema::Generator.new(@db) do
+      integer :size
+      text :name
+    end
+  end
+  
+  after(:all) do
+    Sequel::MySQL.default_engine = nil
+    Sequel::MySQL.default_charset = nil
+    Sequel::MySQL.default_collate = nil
+  end
+  
+  specify "should allow to pass custom options (engine, charset, collate) for table creation" do
+    statements = @db.create_table_sql_list(:items, *(@g.create_info << @options))
+    statements.should == [
+      "CREATE TABLE items (size integer, name text) ENGINE=MyISAM DEFAULT CHARSET=latin2 DEFAULT COLLATE=swedish"
+    ]
+  end
+  
+  specify "should use default options if specified (engine, charset, collate) for table creation" do
+    statements = @db.create_table_sql_list(:items, *(@g.create_info))
+    statements.should == [
+      "CREATE TABLE items (size integer, name text) ENGINE=InnoDB DEFAULT CHARSET=utf8 DEFAULT COLLATE=utf8"
+    ]
+  end
+  
+  specify "should not use default if option has a nil value" do
+    statements = @db.create_table_sql_list(:items, *(@g.create_info << {:engine=>nil, :charset=>nil, :collate=>nil}))
+    statements.should == [
+      "CREATE TABLE items (size integer, name text)"
+    ]
+  end
+end
 
 context "A MySQL database" do
   setup do
@@ -472,6 +532,16 @@ context "A MySQL database" do
     ]
   end
   
+specify "should correctly format ALTER TABLE statements with foreign keys" do
+  g = Sequel::Schema::AlterTableGenerator.new(@db) do
+    add_foreign_key :p_id, :users, :key => :id, :null => false, :on_delete => :cascade
+  end
+  @db.alter_table_sql_list(:items, g.operations).should == [[
+    "ALTER TABLE items ADD COLUMN p_id integer NOT NULL",
+    "ALTER TABLE items ADD FOREIGN KEY (p_id) REFERENCES users(id) ON DELETE CASCADE"
+  ]]
+end
+  
   specify "should accept repeated raw sql statements using Database#<<" do
     @db << 'DELETE FROM items'
     @db[:items].count.should == 0
@@ -482,23 +552,32 @@ context "A MySQL database" do
     @db << 'DELETE FROM items'
     @db[:items].first.should == nil
   end
+  
+  specify "should handle multiple select statements at once" do
+    @db << 'DELETE FROM items; '
+    
+    @db[:items].delete
+    @db[:items].insert(:name => 'tutu', :value => 1234)
+    @db["SELECT * FROM items; SELECT * FROM items"].all.should == \
+      [{:name => 'tutu', :value => 1234}, {:name => 'tutu', :value => 1234}]
+  end
 end  
 
 # Socket tests should only be run if the MySQL server is on localhost
-if %w'localhost 127.0.0.1 ::1'.include? MYSQL_URI.host
+if %w'localhost 127.0.0.1 ::1'.include?(MYSQL_URI.host) and MYSQL_DB.class.adapter_scheme == :mysql
   context "A MySQL database" do
     specify "should accept a socket option" do
-      db = Sequel.mysql(MYSQL_DB_NAME, :host => 'localhost', :user => MYSQL_USER, :socket => MYSQL_SOCKET_FILE)
+      db = Sequel.mysql(MYSQL_DB.opts[:database], :host => 'localhost', :user => MYSQL_DB.opts[:user], :password => MYSQL_DB.opts[:password], :socket => MYSQL_SOCKET_FILE)
       proc {db.test_connection}.should_not raise_error
     end
     
     specify "should accept a socket option without host option" do
-      db = Sequel.mysql(MYSQL_DB_NAME, :user => MYSQL_USER, :socket => MYSQL_SOCKET_FILE)
+      db = Sequel.mysql(MYSQL_DB.opts[:database], :user => MYSQL_DB.opts[:user], :password => MYSQL_DB.opts[:password], :socket => MYSQL_SOCKET_FILE)
       proc {db.test_connection}.should_not raise_error
     end
     
     specify "should fail to connect with invalid socket" do
-      db = Sequel.mysql(MYSQL_DB_NAME, :host => 'localhost', :user => MYSQL_USER, :socket => 'blah')
+      db = Sequel.mysql(MYSQL_DB.opts[:database], :user => MYSQL_DB.opts[:user], :password => MYSQL_DB.opts[:password], :socket =>'blah')
       proc {db.test_connection}.should raise_error
     end
   end
@@ -642,9 +721,9 @@ context "MySQL::Dataset#multi_insert" do
     @d.multi_insert([{:name => 'abc'}, {:name => 'def'}])
     
     MYSQL_DB.sqls.should == [
-      'BEGIN',
+      SQL_BEGIN,
       "INSERT INTO items (name) VALUES ('abc'), ('def')",
-      'COMMIT'
+      SQL_COMMIT
     ]
 
     @d.all.should == [
@@ -657,12 +736,12 @@ context "MySQL::Dataset#multi_insert" do
       :commit_every => 2)
 
     MYSQL_DB.sqls.should == [
-      'BEGIN',
+      SQL_BEGIN,
       "INSERT INTO items (value) VALUES (1), (2)",
-      'COMMIT',
-      'BEGIN',
+      SQL_COMMIT,
+      SQL_BEGIN,
       "INSERT INTO items (value) VALUES (3), (4)",
-      'COMMIT'
+      SQL_COMMIT
     ]
     
     @d.all.should == [
@@ -678,12 +757,12 @@ context "MySQL::Dataset#multi_insert" do
       :slice => 2)
 
     MYSQL_DB.sqls.should == [
-      'BEGIN',
+      SQL_BEGIN,
       "INSERT INTO items (value) VALUES (1), (2)",
-      'COMMIT',
-      'BEGIN',
+      SQL_COMMIT,
+      SQL_BEGIN,
       "INSERT INTO items (value) VALUES (3), (4)",
-      'COMMIT'
+      SQL_COMMIT
     ]
     
     @d.all.should == [
@@ -698,9 +777,9 @@ context "MySQL::Dataset#multi_insert" do
     @d.multi_insert([:name, :value], [['abc', 1], ['def', 2]])
 
     MYSQL_DB.sqls.should == [
-      'BEGIN',
+      SQL_BEGIN,
       "INSERT INTO items (name, value) VALUES ('abc', 1), ('def', 2)",
-      'COMMIT'
+      SQL_COMMIT
     ]
     
     @d.all.should == [
@@ -753,11 +832,50 @@ context "MySQL::Dataset#complex_expression_sql" do
   specify "should handle string concatenation with CONCAT if more than one record" do
     @d.literal([:x, :y].sql_string_join).should == "CONCAT(x, y)"
     @d.literal([:x, :y].sql_string_join(' ')).should == "CONCAT(x, ' ', y)"
-    @d.literal([:x[:y], 1, 'z'.lit].sql_string_join(:y|1)).should == "CONCAT(x(y), y[1], '1', y[1], z)"
+    @d.literal([:x.sql_function(:y), 1, 'z'.lit].sql_string_join(:y|1)).should == "CONCAT(x(y), y[1], '1', y[1], z)"
   end
 
   specify "should handle string concatenation as simple string if just one record" do
     @d.literal([:x].sql_string_join).should == "x"
     @d.literal([:x].sql_string_join(' ')).should == "x"
+  end
+end
+
+unless MYSQL_DB.class.adapter_scheme == :do
+  context "MySQL Stored Procedures" do
+    teardown do
+      MYSQL_DB.execute('DROP PROCEDURE test_sproc')
+    end
+    
+    specify "should be callable on the database object" do
+      MYSQL_DB.execute('CREATE PROCEDURE test_sproc() BEGIN DELETE FROM items; END')
+      MYSQL_DB[:items].delete
+      MYSQL_DB[:items].insert(:value=>1)
+      MYSQL_DB[:items].count.should == 1
+      MYSQL_DB.call_sproc(:test_sproc)
+      MYSQL_DB[:items].count.should == 0
+    end
+    
+    specify "should be callable on the dataset object" do
+      MYSQL_DB.execute('CREATE PROCEDURE test_sproc(a INTEGER) BEGIN SELECT *, a AS b FROM items; END')
+      MYSQL_DB[:items].delete
+      @d = MYSQL_DB[:items]
+      @d.call_sproc(:select, :test_sproc, 3).should == []
+      @d.insert(:value=>1)
+      @d.call_sproc(:select, :test_sproc, 4).should == [{:id=>nil, :value=>1, :b=>4}]
+      @d.row_proc = proc{|r| r.keys.each{|k| r[k] *= 2 if r[k].is_a?(Integer)}; r}
+      @d.call_sproc(:select, :test_sproc, 3).should == [{:id=>nil, :value=>2, :b=>6}]
+    end
+    
+    specify "should be callable on the dataset object with multiple arguments" do
+      MYSQL_DB.execute('CREATE PROCEDURE test_sproc(a INTEGER, c INTEGER) BEGIN SELECT *, a AS b, c AS d FROM items; END')
+      MYSQL_DB[:items].delete
+      @d = MYSQL_DB[:items]
+      @d.call_sproc(:select, :test_sproc, 3, 4).should == []
+      @d.insert(:value=>1)
+      @d.call_sproc(:select, :test_sproc, 4, 5).should == [{:id=>nil, :value=>1, :b=>4, :d=>5}]
+      @d.row_proc = proc{|r| r.keys.each{|k| r[k] *= 2 if r[k].is_a?(Integer)}; r}
+      @d.call_sproc(:select, :test_sproc, 3, 4).should == [{:id=>nil, :value=>2, :b=>6, :d => 8}]
+    end
   end
 end

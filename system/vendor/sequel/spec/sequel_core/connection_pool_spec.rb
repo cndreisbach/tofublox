@@ -23,7 +23,7 @@ end
 context "A connection pool handling connections" do
   setup do
     @max_size = 2
-    @cpool = Sequel::ConnectionPool.new(CONNECTION_POOL_DEFAULTS.merge(:max_connections=>@max_size)) {:got_connection}
+    @cpool = Sequel::ConnectionPool.new(CONNECTION_POOL_DEFAULTS.merge(:disconnection_proc=>proc{|c| @max_size=3},  :max_connections=>@max_size)) {:got_connection}
   end
 
   specify "#hold should increment #created_count" do
@@ -60,6 +60,45 @@ context "A connection pool handling connections" do
     @cpool.send(:make_new, :default).should == :got_connection
     @cpool.send(:make_new, :default).should == nil
     @cpool.created_count.should == 2
+  end
+
+  specify ":disconnection_proc option should set the disconnection proc to use" do
+    @max_size.should == 2
+    proc{@cpool.hold{raise Sequel::DatabaseDisconnectError}}.should raise_error(Sequel::DatabaseDisconnectError)
+    @max_size.should == 3
+  end
+
+  specify "#disconnection_proc= should set the disconnection proc to use" do
+    a = 1
+    @cpool.disconnection_proc = proc{|c| a += 1}
+    proc{@cpool.hold{raise Sequel::DatabaseDisconnectError}}.should raise_error(Sequel::DatabaseDisconnectError)
+    a.should == 2
+  end
+
+  specify "#hold should remove the connection if a DatabaseDisconnectError is raised" do
+    @cpool.created_count.should == 0
+    @cpool.hold{Thread.new{@cpool.hold{}}; sleep 0.01}
+    @cpool.created_count.should == 2
+    proc{@cpool.hold{raise Sequel::DatabaseDisconnectError}}.should raise_error(Sequel::DatabaseDisconnectError)
+    @cpool.created_count.should == 1
+    proc{@cpool.hold{raise Sequel::DatabaseDisconnectError}}.should raise_error(Sequel::DatabaseDisconnectError)
+    @cpool.created_count.should == 0
+    proc{@cpool.hold{raise Sequel::DatabaseDisconnectError}}.should raise_error(Sequel::DatabaseDisconnectError)
+    @cpool.created_count.should == 0
+  end
+end
+
+context "A connection pool handling connection errors" do 
+  specify "#hold should raise a Sequel::DatabaseConnectionError if an exception is raised by the connection_proc" do
+    cpool = Sequel::ConnectionPool.new(CONNECTION_POOL_DEFAULTS){raise Interrupt}
+    proc{cpool.hold{:block_return}}.should raise_error(Sequel::DatabaseConnectionError)
+    cpool.created_count.should == 0
+  end
+
+  specify "#hold should raise a Sequel::DatabaseConnectionError if nil is returned by the connection_proc" do
+    cpool = Sequel::ConnectionPool.new(CONNECTION_POOL_DEFAULTS){nil}
+    proc{cpool.hold{:block_return}}.should raise_error(Sequel::DatabaseConnectionError)
+    cpool.created_count.should == 0
   end
 end
 
@@ -423,7 +462,8 @@ end
 
 context "A single threaded pool with multiple servers" do
   setup do
-    @pool = Sequel::SingleThreadedPool.new(CONNECTION_POOL_DEFAULTS.merge(:servers=>{:read_only=>{}})){|server| server}
+    @max_size=2
+    @pool = Sequel::SingleThreadedPool.new(CONNECTION_POOL_DEFAULTS.merge(:disconnection_proc=>proc{|c| @max_size=3}, :servers=>{:read_only=>{}})){|server| server}
   end
   
   specify "should use the :default server by default" do
@@ -461,5 +501,26 @@ context "A single threaded pool with multiple servers" do
     conns.sort_by{|x| x.to_s}.should == [:default, :read_only]
     @pool.conn.should == nil
     @pool.conn(:read_only).should == nil
+  end
+
+  specify ":disconnection_proc option should set the disconnection proc to use" do
+    @max_size.should == 2
+    proc{@pool.hold{raise Sequel::DatabaseDisconnectError}}.should raise_error(Sequel::DatabaseDisconnectError)
+    @max_size.should == 3
+  end
+
+  specify "#disconnection_proc= should set the disconnection proc to use" do
+    a = 1
+    @pool.disconnection_proc = proc{|c| a += 1}
+    proc{@pool.hold{raise Sequel::DatabaseDisconnectError}}.should raise_error(Sequel::DatabaseDisconnectError)
+    a.should == 2
+  end
+
+  specify "#hold should remove the connection if a DatabaseDisconnectError is raised" do
+    @pool.instance_variable_get(:@conns).length.should == 0
+    @pool.hold{}
+    @pool.instance_variable_get(:@conns).length.should == 1
+    proc{@pool.hold{raise Sequel::DatabaseDisconnectError}}.should raise_error(Sequel::DatabaseDisconnectError)
+    @pool.instance_variable_get(:@conns).length.should == 0
   end
 end

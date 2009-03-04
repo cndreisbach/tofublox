@@ -51,6 +51,15 @@
 #   one_to_many :attributes
 #   has_many :attributes
 module Sequel::Model::Associations
+  # This module contains methods added to all association datasets
+  module DatasetMethods
+    # The model object that created the association dataset
+    attr_accessor :model_object
+
+    # The association reflection related to the association dataset
+    attr_accessor :association_reflection
+  end
+
   # Array of all association reflections for this model class
   def all_association_reflections
     association_reflections.values
@@ -100,6 +109,10 @@ module Sequel::Model::Associations
   #   - :class - The associated class or its name. If not
   #     given, uses the association's name, which is camelized (and
   #     singularized unless the type is :many_to_one)
+  #   - :clone - Merge the current options and block into the options and block used in defining
+  #     the given association.  Can be used to DRY up a bunch of similar associations that
+  #     all share the same options such as :class and :key, while changing the order and block used.
+  #   - :conditions - The conditions to use to filter the association, can be any argument passed to filter.
   #   - :dataset - A proc that is instance_evaled to get the base dataset
   #     to use for the _dataset method (before the other options are applied).
   #   - :eager - The associations to eagerly load via EagerLoading#eager when loading the associated object(s).
@@ -126,7 +139,8 @@ module Sequel::Model::Associations
   #   - :graph_block - The block to pass to join_table when eagerly loading
   #     the association via eager_graph.
   #   - :graph_conditions - The additional conditions to use on the SQL join when eagerly loading
-  #     the association via eager_graph.  Should be a hash or an array of all two pairs.
+  #     the association via eager_graph.  Should be a hash or an array of all two pairs. If not
+  #     specified, the :conditions option is used if it is a hash or array of all two pairs.
   #   - :graph_join_type - The type of SQL join to use when eagerly loading the association via
   #     eager_graph.  Defaults to :left_outer.
   #   - :graph_only_conditions - The conditions to use on the SQL join when eagerly loading
@@ -203,11 +217,16 @@ module Sequel::Model::Associations
     raise(Error, 'Model.associate name argument must be a symbol') unless Symbol === name
 
     # merge early so we don't modify opts
-    opts = opts.merge(:type => type, :name => name, :block => block, :cache => true, :model => self)
+    orig_opts = opts.dup
+    orig_opts = association_reflection(opts[:clone])[:orig_opts].merge(orig_opts) if opts[:clone]
+    opts = orig_opts.merge(:type => type, :name => name, :cache => true, :model => self)
+    opts[:block] = block if block
     opts = assoc_class.new.merge!(opts)
     opts[:eager_block] = block unless opts.include?(:eager_block)
     opts[:graph_join_type] ||= :left_outer
     opts[:order_eager_graph] = true unless opts.include?(:order_eager_graph)
+    conds = opts[:conditions]
+    opts[:graph_conditions] = conds if !opts.include?(:graph_conditions) and (conds.is_a?(Hash) or (conds.is_a?(Array) and conds.all_two_pairs?))
     opts[:graph_conditions] = opts[:graph_conditions] ? opts[:graph_conditions].to_a : []
     opts[:graph_select] = Array(opts[:graph_select]) if opts[:graph_select]
     [:before_add, :before_remove, :after_add, :after_remove, :after_load, :extend].each do |cb_type|
@@ -225,6 +244,9 @@ module Sequel::Model::Associations
 
     send(:"def_#{type}", opts)
 
+    orig_opts.delete(:clone)
+    orig_opts.merge!(:class_name=>opts[:class_name], :class=>opts[:class], :block=>block)
+    opts[:orig_opts] = orig_opts
     # don't add to association_reflections until we are sure there are no errors
     association_reflections[name] = opts
   end
@@ -386,21 +408,7 @@ module Sequel::Model::Associations
     return if opts[:read_only]
 
     association_module_private_def(opts._setter_method){|o| send(:"#{key}=", (o.send(opts.primary_key) if o))}
-
-    association_module_def(opts.setter_method) do |o|  
-      raise(Sequel::Error, 'model object does not have a primary key') if o && !o.pk
-      old_val = send(opts.association_method)
-      return o if old_val == o
-      return if old_val and run_association_callbacks(opts, :before_remove, old_val) == false
-      return if o and run_association_callbacks(opts, :before_add, o) == false
-      send(opts._setter_method, o)
-      @associations[name] = o
-      remove_reciprocal_object(opts, old_val) if old_val
-      add_reciprocal_object(opts, o) if o
-      run_association_callbacks(opts, :after_add, o) if o
-      run_association_callbacks(opts, :after_remove, old_val) if old_val
-      o
-    end
+    association_module_def(opts.setter_method){|o| set_associated_object(opts, o)}
   end
   
   # Adds one_to_many association instance methods

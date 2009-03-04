@@ -15,7 +15,7 @@ rescue LoadError => e
           # If there is no escape_string instead method, but there is an
           # escape class method, use that instead.
           def escape_string(str)
-            self.class.escape(str)
+            Sequel::Postgres.force_standard_strings ? str.gsub("'", "''") : self.class.escape(str)
           end
         else
           # Raise an error if no valid string escaping method can be found.
@@ -62,6 +62,9 @@ rescue LoadError => e
         def block(timeout=nil)
         end
       end
+      unless defined?(CONNECTION_OK)
+        CONNECTION_OK = -1
+      end
     end
     class PGresult 
       alias_method :nfields, :num_fields unless method_defined?(:nfields) 
@@ -76,15 +79,13 @@ rescue LoadError => e
 end
 
 module Sequel
-  # Top level module for holding all PostgreSQL-related modules and classes
-  # for Sequel.
   module Postgres
     CONVERTED_EXCEPTIONS << PGError
     
     # Hash with integer keys and proc values for converting PostgreSQL types.
     PG_TYPES = {
       16 => lambda{ |s| s == 't' }, # boolean
-      17 => lambda{ |s| Adapter.unescape_bytea(s).to_blob }, # bytea
+      17 => lambda{ |s| ::Sequel::SQL::Blob.new(Adapter.unescape_bytea(s)) }, # bytea
       20 => lambda{ |s| s.to_i }, # int8
       21 => lambda{ |s| s.to_i }, # int2
       22 => lambda{ |s| s.to_i }, # int2vector
@@ -97,7 +98,6 @@ module Sequel
       1083 => lambda{ |s| s.to_time }, # time without time zone
       1114 => lambda{ |s| s.to_sequel_time }, # timestamp without time zone
       1184 => lambda{ |s| s.to_sequel_time }, # timestamp with time zone
-      1186 => lambda{ |s| s.to_i }, # interval
       1266 => lambda{ |s| s.to_time }, # time with time zone
       1700 => lambda{ |s| s.to_d }, # numeric
     }
@@ -119,7 +119,12 @@ module Sequel
       # the date style to ISO in order make Date object creation in ruby faster,
       # if Postgres.use_iso_date_format is true.
       def apply_connection_settings
-        async_exec("SET DateStyle = 'ISO'") if Postgres.use_iso_date_format
+        super
+        if Postgres.use_iso_date_format
+          sql = "SET DateStyle = 'ISO'"
+          @db.log_info(sql)
+          execute(sql)
+        end
       end
 
       # Execute the given SQL with this connection.  If a block is given,
@@ -128,12 +133,16 @@ module Sequel
         q = nil
         begin
           q = args ? async_exec(sql, args) : async_exec(sql)
-        rescue PGError => e
-          raise if status == Adapter::CONNECTION_OK
-          reset
-          q = args ? async_exec(sql, args) : async_exec(sql)
+        rescue PGError
+          begin
+            s = status
+          rescue PGError
+            raise(Sequel::DatabaseDisconnectError)
+          end
+          status_ok = (s == Adapter::CONNECTION_OK)
+          status_ok ? raise : raise(Sequel::DatabaseDisconnectError)
         ensure
-          block
+          block if status_ok
         end
         begin
           block_given? ? yield(q) : q.cmd_tuples
@@ -200,19 +209,14 @@ module Sequel
             conn.async_exec("set client_encoding to '#{encoding}'")
           end
         end
-        conn.apply_connection_settings
         conn.db = self
+        conn.apply_connection_settings
         conn
       end
       
       # Return instance of Sequel::Postgres::Dataset with the given options.
       def dataset(opts = nil)
         Postgres::Dataset.new(self, opts)
-      end
-      
-      # Disconnect all active connections.
-      def disconnect
-        @pool.disconnect {|c| c.finish}
       end
       
       # Execute the given SQL with the given args on an available connection.
@@ -248,6 +252,14 @@ module Sequel
       # PostgreSQL doesn't need the connection pool to convert exceptions.
       def connection_pool_default_options
         super.merge(:pool_convert_exceptions=>false)
+      end
+      
+      # Disconnect given connection
+      def disconnect_connection(conn)
+        begin
+          conn.finish
+        rescue PGError
+        end
       end
       
       # Execute the prepared statement with the given name on an available
@@ -300,7 +312,7 @@ module Sequel
         cols = []
         execute(sql) do |res|
           res.nfields.times do |fieldnum|
-            cols << [fieldnum, PG_TYPES[res.ftype(fieldnum)], res.fname(fieldnum).to_sym]
+            cols << [fieldnum, PG_TYPES[res.ftype(fieldnum)], output_identifier(res.fname(fieldnum))]
           end
           @columns = cols.map{|c| c.at(2)}
           res.ntuples.times do |recnum|
@@ -313,10 +325,10 @@ module Sequel
           end
         end
       end
-      
+
       if SEQUEL_POSTGRES_USES_PG
         
-        PREPARED_ARG_PLACEHOLDER = '$'.lit.freeze
+        PREPARED_ARG_PLACEHOLDER = LiteralString.new('$').freeze
         
         # PostgreSQL specific argument mapper used for mapping the named
         # argument hash to a array with numbered arguments.  Only used with
@@ -329,11 +341,9 @@ module Sequel
           # Return an array of strings for each of the hash values, inserting
           # them to the correct position in the array.
           def map_to_prepared_args(hash)
-            array = []
-            @prepared_args.each{|k,v| array[v] = hash[k].to_s}
-            array
+            @prepared_args.map{|k| hash[k.to_sym].to_s}
           end
-          
+
           private
           
           # PostgreSQL most of the time requires type information for each of
@@ -343,21 +353,16 @@ module Sequel
           # elminate ambiguity (and PostgreSQL from raising an exception).
           def prepared_arg(k)
             y, type = k.to_s.split("__")
-            "#{prepared_arg_placeholder}#{@prepared_args[y.to_sym]}#{"::#{type}" if type}".lit
-          end
-          
-          # If the named argument has already been used, return the position in
-          # the output array that it is mapped to.  Otherwise, map it to the
-          # next position in the array.
-          def prepared_args_hash
-            max_prepared_arg = 0
-            Hash.new do |h,k|
-              h[k] = max_prepared_arg
-              max_prepared_arg += 1
+            if i = @prepared_args.index(y)
+              i += 1
+            else
+              @prepared_args << y
+              i = @prepared_args.length
             end
+            LiteralString.new("#{prepared_arg_placeholder}#{i}#{"::#{type}" if type}")
           end
         end
-        
+
         # Allow use of bind arguments for PostgreSQL using the pg driver.
         module BindArgumentMethods
           include ArgumentMapper
@@ -414,11 +419,14 @@ module Sequel
         
         # Prepare the given type of statement with the given name, and store
         # it in the database to be called later.
-        def prepare(type, name, values=nil)
+        def prepare(type, name=nil, values=nil)
           ps = to_prepared_statement(type, values)
           ps.extend(PreparedStatementMethods)
-          ps.prepared_statement_name = name
-          db.prepared_statements[name] = ps
+          if name
+            ps.prepared_statement_name = name
+            db.prepared_statements[name] = ps
+          end
+          ps
         end
         
         private
@@ -429,6 +437,17 @@ module Sequel
           PREPARED_ARG_PLACEHOLDER
         end
       end
+      
+      private
+
+      def literal_blob(v)
+        db.synchronize{|c| "'#{c.escape_bytea(v)}'"}
+      end
+
+      def literal_string(v)
+        db.synchronize{|c| "'#{c.escape_string(v)}'"}
+      end
+
     end
   end
 end

@@ -181,21 +181,21 @@ module Sequel
     module CastMethods 
       # Cast the reciever to the given SQL type
       def cast(sql_type)
-        IrregularFunction.new(:cast, self, :AS, sql_type.to_s.lit)
+        Cast.new(self, sql_type)
       end
       alias_method :cast_as, :cast
 
       # Cast the reciever to the given SQL type (or integer if none given),
       # and return the result as a NumericExpression. 
       def cast_numeric(sql_type = nil)
-        cast(sql_type || :integer).sql_number
+        cast(sql_type || Integer).sql_number
       end
 
       # Cast the reciever to the given SQL type (or text if none given),
       # and return the result as a StringExpression, so you can use +
       # directly on the result for SQL string concatenation.
       def cast_string(sql_type = nil)
-        cast(sql_type || :text).sql_string
+        cast(sql_type || String).sql_string
       end
     end
     
@@ -334,19 +334,14 @@ module Sequel
     #
     #   :price.sql_number/10 > 100
     module ComplexExpressionMethods
-      include BooleanMethods
-      include NumericMethods
-      include StringMethods
-      include InequalityMethods
-
       # Extract a datetime_part (e.g. year, month) from self:
       #
-      #   :date.extract(:year) # SQL:  extract(year FROM date)
+      #   :date.extract(:year) # SQL:  extract(year FROM "date")
       #
       # Also has the benefit of returning the result as a
       # NumericExpression instead of a generic ComplexExpression.
       def extract(datetime_part)
-        IrregularFunction.new(:extract, datetime_part.to_s.lit, :FROM, self).sql_number
+        Function.new(:extract, PlaceholderLiteralString.new("#{datetime_part} FROM ?", [self])).sql_number
       end
 
       # Return a BooleanExpression representation of self.
@@ -365,23 +360,21 @@ module Sequel
       end
     end
 
-    module SpecificExpressionMethods
+    class ComplexExpression
       include AliasMethods
       include CastMethods
       include OrderMethods
     end
 
-    module GenericExpressionMethods
-      include SpecificExpressionMethods
-      include ComplexExpressionMethods
-    end
-
-    class ComplexExpression
-      include SpecificExpressionMethods
-    end
-
     class GenericExpression
-      include GenericExpressionMethods
+      include AliasMethods
+      include CastMethods
+      include OrderMethods
+      include ComplexExpressionMethods
+      include BooleanMethods
+      include NumericMethods
+      include StringMethods
+      include InequalityMethods
     end
 
     ### Classes ###
@@ -407,22 +400,6 @@ module Sequel
       end
     end
 
-    # Represents an SQL array.  Added so it is possible to deal with a
-    # ruby array of all two pairs as an SQL array instead of an ordered
-    # hash-like conditions specifier.
-    class SQLArray < Expression
-      # Create an object with the given array.
-      def initialize(array)
-        @array = array
-      end
-
-      # Delegate the creation of the resulting SQL to the given dataset,
-      # since it may be database dependent.
-      def to_s(ds)
-        ds.array_sql(@array)
-      end
-    end
-
     # Blob is used to represent binary data in the Ruby environment that is
     # stored as a blob type in the database. In PostgreSQL, the blob type is 
     # called bytea. Sequel represents binary data as a Blob object because 
@@ -430,9 +407,10 @@ module Sequel
     # escaped.
     class Blob < ::String
       # return self.
-      def to_blob
+      def to_sequel_blob
         self
       end
+      alias to_blob to_sequel_blob
     end
 
     # Subclass of ComplexExpression where the expression results
@@ -523,6 +501,27 @@ module Sequel
       end
     end
 
+    # Represents a cast of an SQL expression to a specific type.
+    class Cast < GenericExpression
+      # The expression to cast
+      attr_reader :expr
+
+      # The type to which to cast the expression
+      attr_reader :type
+      
+      # Set the attributes to the given arguments
+      def initialize(expr, type)
+        @expr = expr
+        @type = type
+      end
+
+      # Delegate the creation of the resulting SQL to the given dataset,
+      # since it may be database dependent.
+      def to_s(ds)
+        ds.cast_sql(expr, type)
+      end
+    end
+
     # Represents all columns in a given table, table.* in SQL
     class ColumnAll < SpecificExpression
       # The table containing the columns being selected
@@ -593,35 +592,6 @@ module Sequel
       end 
     end
     
-    # IrregularFunction is used for the SQL EXTRACT and CAST functions,
-    # which don't use regular function calling syntax. The IrregularFunction
-    # replaces the commas the regular function uses with a custom
-    # join string.
-    #
-    # This shouldn't be used directly, see CastMethods#cast and 
-    # ComplexExpressionMethods#extract.
-    class IrregularFunction < Function
-      # The arguments to pass to the function (may be blank)
-      attr_reader :arg1, :arg2
-
-      # The SQL function to call
-      attr_reader :f
-      
-      # The literal string to use in place of a comma to join arguments
-      attr_reader :joiner
-
-      # Set the attributes to the given arguments
-      def initialize(f, arg1, joiner, arg2)
-        @f, @arg1, @joiner, @arg2 = f, arg1, joiner, arg2
-      end
-
-      # Delegate the creation of the resulting SQL to the given dataset,
-      # since it may be database dependent.
-      def to_s(ds)
-        ds.irregular_function_sql(self)
-      end
-    end
-
     # Represents an SQL JOIN clause, used for joining tables.
     class JoinClause < SpecificExpression
       # The type of join to do
@@ -682,6 +652,34 @@ module Sequel
       # since it may be database dependent.
       def to_s(ds)
         ds.join_using_clause_sql(self)
+      end
+    end
+
+    # Represents a literal string with placeholders and arguments.
+    # This is necessary to ensure delayed literalization of the arguments
+    # required for the prepared statement support
+    class PlaceholderLiteralString < SpecificExpression
+      # The arguments that will be subsituted into the placeholders.
+      attr_reader :args
+
+      # The literal string containing placeholders
+      attr_reader :str
+
+      # Whether to surround the expression with parantheses
+      attr_reader :parens
+
+      # Create an object with the given conditions and
+      # default value.
+      def initialize(str, args, parens=false)
+        @str = str
+        @args = args
+        @parens = parens
+      end
+
+      # Delegate the creation of the resulting SQL to the given dataset,
+      # since it may be database dependent.
+      def to_s(ds)
+        ds.placeholder_literal_string_sql(self)
       end
     end
 
@@ -764,6 +762,22 @@ module Sequel
       end
     end
 
+    # Represents an SQL array.  Added so it is possible to deal with a
+    # ruby array of all two pairs as an SQL array instead of an ordered
+    # hash-like conditions specifier.
+    class SQLArray < Expression
+      # Create an object with the given array.
+      def initialize(array)
+        @array = array
+      end
+
+      # Delegate the creation of the resulting SQL to the given dataset,
+      # since it may be database dependent.
+      def to_s(ds)
+        ds.array_sql(@array)
+      end
+    end
+
     # Represents an SQL array access, with multiple possible arguments.
     class Subscript < GenericExpression
       # The SQL array column
@@ -831,10 +845,14 @@ module Sequel
   # LiteralString is used to represent literal SQL expressions. A 
   # LiteralString is copied verbatim into an SQL statement. Instances of
   # LiteralString can be created by calling String#lit.
-  # LiteralStrings can use all of the SQL::ColumnMethods and the 
+  # LiteralStrings can also use all of the SQL::OrderMethods and the 
   # SQL::ComplexExpressionMethods.
   class LiteralString < ::String
     include SQL::OrderMethods
     include SQL::ComplexExpressionMethods
+    include SQL::BooleanMethods
+    include SQL::NumericMethods
+    include SQL::StringMethods
+    include SQL::InequalityMethods
   end
 end

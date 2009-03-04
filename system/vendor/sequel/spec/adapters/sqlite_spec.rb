@@ -248,6 +248,20 @@ context "An SQLite dataset" do
   end
 end
 
+context "An SQLite numeric column" do
+  specify "should handle and return BigDecimal values" do
+    SQLITE_DB.create_table!(:d){numeric :d}
+    d = SQLITE_DB[:d]
+    d.insert(:d=>BigDecimal.new('80.0'))
+    d.insert(:d=>BigDecimal.new('NaN'))
+    d.insert(:d=>BigDecimal.new('Infinity'))
+    d.insert(:d=>BigDecimal.new('-Infinity'))
+    ds = d.all
+    ds.shift.should == {:d=>BigDecimal.new('80.0')}
+    ds.map{|x| x[:d].to_s}.should == %w'NaN Infinity -Infinity'
+  end
+end
+
 context "An SQLite dataset AS clause" do
   specify "should use a string literal for :col___alias" do
     SQLITE_DB.literal(:c___a).should == "c AS 'a'"
@@ -321,10 +335,10 @@ context "SQLite::Dataset#delete" do
   
   specify "should return the number of records affected when filtered" do
     @d.count.should == 3
-    @d.filter {:value < 3}.delete.should == 1
+    @d.filter {:value.sql_number < 3}.delete.should == 1
     @d.count.should == 2
 
-    @d.filter {:value < 3}.delete.should == 0
+    @d.filter {:value.sql_number < 3}.delete.should == 0
     @d.count.should == 2
   end
   
@@ -415,8 +429,114 @@ context "A SQLite database" do
     @db[:test2].first.should == {:name => 'mmm'}
   end
   
-  specify "should not support rename_column operations" do
-    proc {@db.rename_column :test2, :value, :zyx}.should raise_error(Sequel::Error)
+  specify "should support drop_column operations in a transaction" do
+    @db.transaction{@db.drop_column :test2, :value}
+    @db[:test2].columns.should == [:name]
+    @db[:test2] << {:name => 'mmm'}
+    @db[:test2].first.should == {:name => 'mmm'}
+  end
+
+  specify "should keep column attributes when dropping a column" do
+    @db.create_table! :test3 do
+      primary_key :id
+      text :name
+      integer :value
+    end
+
+    # This lame set of additions and deletions are to test that the primary keys
+    # don't get messed up when we recreate the database.
+    @db[:test3] << { :name => "foo", :value => 1}
+    @db[:test3] << { :name => "foo", :value => 2}
+    @db[:test3] << { :name => "foo", :value => 3}
+    @db[:test3].filter(:id => 2).delete
+    
+    @db.drop_column :test3, :value
+
+    @db['PRAGMA table_info(?)', :test3][:id][:pk].to_i.should == 1
+    @db[:test3].select(:id).all.should == [{:id => 1}, {:id => 3}]
+  end
+
+  specify "should support rename_column operations" do
+    @db[:test2].delete
+    @db.add_column :test2, :xyz, :text
+    @db[:test2] << {:name => 'mmm', :value => 111, :xyz => 'qqqq'}
+
+    @db[:test2].columns.should == [:name, :value, :xyz]
+    @db.rename_column :test2, :xyz, :zyx, :type => :text
+    @db[:test2].columns.should == [:name, :value, :zyx]
+    @db[:test2].first[:zyx].should == 'qqqq'
+    @db[:test2].count.should eql(1)
+  end
+  
+  specify "should preserve defaults when dropping or renaming columns" do
+    @db.create_table! :test3 do
+      String :s, :default=>'a'
+      Integer :i
+    end
+
+    @db[:test3].insert
+    @db[:test3].first[:s].should == 'a'
+    @db[:test3].delete
+    @db.drop_column :test3, :i
+    @db[:test3].insert
+    @db[:test3].first[:s].should == 'a'
+    @db[:test3].delete
+    @db.rename_column :test3, :s, :t
+    @db[:test3].insert
+    @db[:test3].first[:t].should == 'a'
+    @db[:test3].delete
+  end
+  
+  specify "should handle quoted tables when dropping or renaming columns" do
+    @db.quote_identifiers = true
+    table_name = "T T"
+    @db.drop_table(table_name) rescue nil
+    @db.create_table! table_name do
+      Integer :"s s"
+      Integer :"i i"
+    end
+
+    @db.from(table_name).insert(:"s s"=>1, :"i i"=>2)
+    @db.from(table_name).all.should == [{:"s s"=>1, :"i i"=>2}]
+    @db.drop_column table_name, :"i i"
+    @db.from(table_name).all.should == [{:"s s"=>1}]
+    @db.rename_column table_name, :"s s", :"t t"
+    @db.from(table_name).all.should == [{:"t t"=>1}]
+  end
+  
+  specify "should choose a temporary table name that isn't already used when dropping or renaming columns" do
+    @db.create_table! :test3 do
+      Integer :h
+      Integer :i
+    end
+    @db.create_table! :test3_backup0 do
+      Integer :j
+    end
+    @db.create_table! :test3_backup1 do
+      Integer :k
+    end
+
+    @db[:test3].columns.should == [:h, :i]
+    @db[:test3_backup0].columns.should == [:j]
+    @db[:test3_backup1].columns.should == [:k]
+    sqls = @db.drop_column(:test3, :i)
+    sqls.any?{|x| x =~ /test3_backup2/}.should == true
+    sqls.any?{|x| x =~ /test3_backup[01]/}.should == false
+    @db[:test3].columns.should == [:h]
+    @db[:test3_backup0].columns.should == [:j]
+    @db[:test3_backup1].columns.should == [:k]
+
+    @db.create_table! :test3_backup2 do
+      Integer :l
+    end
+
+    sqls = @db.rename_column(:test3, :h, :i)
+    sqls.any?{|x| x =~ /test3_backup3/}.should == true
+    sqls.any?{|x| x =~ /test3_backup[012]/}.should == false
+    @db[:test3].columns.should == [:i]
+    @db[:test3_backup0].columns.should == [:j]
+    @db[:test3_backup1].columns.should == [:k]
+    @db[:test3_backup2].columns.should == [:l]
   end
   
   specify "should not support set_column_type operations" do
@@ -428,7 +548,8 @@ context "A SQLite database" do
     @db.add_index :test2, [:name, :value]
   end
   
-  specify "should not support drop_index" do
-    proc {@db.drop_index :test2, :value}.should raise_error(Sequel::Error)
+  specify "should support drop_index" do
+    @db.add_index :test2, :value, :unique => true
+    @db.drop_index :test2, :value
   end
 end  

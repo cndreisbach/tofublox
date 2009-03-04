@@ -2,16 +2,25 @@ module Sequel
   class Model
     @allowed_columns = nil
     @association_reflections = {}
+    @cache_store = nil
+    @cache_ttl = nil
+    @db = nil
+    @db_schema = nil
     @dataset_methods = {}
     @hooks = {}
+    @overridable_methods_module = nil
     @primary_key = :id
     @raise_on_save_failure = true
     @raise_on_typecast_failure = true
     @restrict_primary_key = true
     @restricted_columns = nil
+    @simple_pk = nil
+    @simple_table = nil
+    @skip_superclass_validations = nil
     @sti_dataset = nil
     @sti_key = nil
     @strict_param_setting = true
+    @transform = nil
     @typecast_empty_string_to_nil = true
     @typecast_on_assignment = true
 
@@ -41,6 +50,14 @@ module Sequel
     # (default: no columns).
     metaattr_reader :restricted_columns
 
+    # Should be the literal primary key column name if this Model's table has a simple primary key, or
+    # nil if the model has a compound primary key or no primary key.
+    metaattr_reader :simple_pk
+
+    # Should be the literal table name if this Model's dataset is a simple table (no select, order, join, etc.),
+    # or nil otherwise.
+    metaattr_reader :simple_table
+
     # The base dataset for STI, to which filters are added to get
     # only the models for the specific STI subclass.
     metaattr_reader :sti_dataset
@@ -68,15 +85,19 @@ module Sequel
        left_outer_join limit map multi_insert naked order order_by order_more 
        paginate print query range reverse_order right_outer_join select 
        select_all select_more server set set_graph_aliases single_value size to_csv to_hash
-       transform union uniq unfiltered unordered update where'.map{|x| x.to_sym}
+       transform union uniq unfiltered unordered update where with_sql'.map{|x| x.to_sym}
 
     # Instance variables that are inherited in subclasses
     INHERITED_INSTANCE_VARIABLES = {:@allowed_columns=>:dup, :@cache_store=>nil,
       :@cache_ttl=>nil, :@dataset_methods=>:dup, :@primary_key=>nil, 
       :@raise_on_save_failure=>nil, :@restricted_columns=>:dup, :@restrict_primary_key=>nil,
+      :@simple_pk=>nil, :@simple_table=>nil,
       :@sti_dataset=>nil, :@sti_key=>nil, :@strict_param_setting=>nil,
       :@typecast_empty_string_to_nil=>nil, :@typecast_on_assignment=>nil,
       :@raise_on_typecast_failure=>nil, :@association_reflections=>:dup}
+    
+    # Empty instance variables, for -w compliance
+    EMPTY_INSTANCE_VARIABLES = [:@overridable_methods_module, :@transform, :@db, :@skip_superclass_validations]
 
     # Returns the first record from the database matching the conditions.
     # If a hash is given, it is used as the conditions.  If another
@@ -85,11 +106,12 @@ module Sequel
     # first before a dataset lookup is attempted unless a hash is supplied.
     def self.[](*args)
       args = args.first if (args.size == 1)
-
-      if Hash === args
-        dataset[args]
+      return dataset[args] if args.is_a?(Hash)
+      return cache_lookup(args) if @cache_store
+      if t = simple_table and p = simple_pk
+        with_sql("SELECT * FROM #{t} WHERE #{p} = #{dataset.literal(args)} LIMIT 1").first
       else
-        @cache_store ? cache_lookup(args) : dataset[primary_key_hash(args)]
+        dataset[primary_key_hash(args)]
       end
     end
     
@@ -174,6 +196,7 @@ module Sequel
     # Modify and return eager loading dataset based on association options
     def self.eager_loading_dataset(opts, ds, select, associations)
       ds = ds.select(*select) if select
+      ds = ds.filter(opts[:conditions]) if opts[:conditions]
       ds = ds.order(*opts[:order]) if opts[:order]
       ds = ds.eager(opts[:eager]) if opts[:eager]
       ds = ds.eager_graph(opts[:eager_graph]) if opts[:eager_graph]
@@ -201,6 +224,7 @@ module Sequel
     def self.inherited(subclass)
       sup_class = subclass.superclass
       ivs = subclass.instance_variables.collect{|x| x.to_s}
+      EMPTY_INSTANCE_VARIABLES.each{|iv| subclass.instance_variable_set(iv, nil) unless ivs.include?(iv.to_s)}
       INHERITED_INSTANCE_VARIABLES.each do |iv, dup|
         next if ivs.include?(iv.to_s)
         sup_class_value = sup_class.instance_variable_get(iv)
@@ -208,9 +232,10 @@ module Sequel
         subclass.instance_variable_set(iv, sup_class_value)
       end
       unless ivs.include?("@dataset")
+        db
         begin
           if sup_class == Model
-            subclass.set_dataset(Model.db[subclass.implicit_table_name]) unless subclass.name.blank?
+            subclass.set_dataset(subclass.implicit_table_name) unless subclass.name.blank?
           elsif ds = sup_class.instance_variable_get(:@dataset)
             subclass.set_dataset(sup_class.sti_key ? sup_class.sti_dataset.filter(sup_class.sti_key=>subclass.name.to_s) : ds.clone, :inherited=>true)
           end
@@ -238,7 +263,7 @@ module Sequel
     # Mark the model as not having a primary key. Not having a primary key
     # can cause issues, among which is that you won't be able to update records.
     def self.no_primary_key
-      @primary_key = nil
+      @simple_pk = @primary_key = nil
     end
 
     # Returns primary key attribute hash.  If using a composite primary key
@@ -316,8 +341,10 @@ module Sequel
       inherited = opts[:inherited]
       @dataset = case ds
       when Symbol
+        @simple_table = db.literal(ds)
         db[ds]
       when Dataset
+        @simple_table = nil
         @db = ds.db
         ds
       else
@@ -326,6 +353,7 @@ module Sequel
       @dataset.set_model(self)
       @dataset.transform(@transform) if @transform
       if inherited
+        @simple_table = sti_key ? nil : superclass.simple_table
         @columns = @dataset.columns rescue nil
       else
         @dataset.extend(DatasetMethods)
@@ -353,6 +381,7 @@ module Sequel
     # You can set it to nil to not have a primary key, but that
     # cause certain things not to work, see #no_primary_key.
     def self.set_primary_key(*key)
+      @simple_pk = key.length == 1 ? db.literal(key.first) : nil 
       @primary_key = (key.length == 1) ? key[0] : key.flatten
     end
 
@@ -401,8 +430,8 @@ module Sequel
     # create dataset methods, so they can be chained for scoping.
     # For example:
     #
-    #   Topic.subset(:popular, :num_posts > 100)
-    #   Topic.subset(:recent, :created_on > Date.today - 7)
+    #   Topic.subset(:popular, :num_posts.sql_number > 100)
+    #   Topic.subset(:recent, :created_on + 7 > Date.today)
     #
     # Allows you to do:
     #
@@ -491,7 +520,7 @@ module Sequel
 
     # Module that the class includes that holds methods the class adds for column accessors and
     # associations so that the methods can be overridden with super
-    def self.overridable_methods_module
+    def self.overridable_methods_module # :nodoc:
       include(@overridable_methods_module = Module.new) unless @overridable_methods_module
       @overridable_methods_module
     end

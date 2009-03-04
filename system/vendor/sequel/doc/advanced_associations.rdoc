@@ -16,7 +16,7 @@ a different block when eager loading via Dataset#eager. Association blocks are
 useful for things like:
 
   Artist.one_to_many :gold_albums, :class=>:Album do |ds|
-    ds.filter(:copies_sold > 500000)
+    ds.filter{|o| o.copies_sold > 500000}
   end
 
 There are a whole bunch of options for changing how the association is eagerly
@@ -124,7 +124,7 @@ a swiss army chainsaw.
 Sequel supports the same callbacks that ActiveRecord does: :before_add,
 :before_remove, :after_add, and :after_remove. It also supports a
 callback that ActiveRecord does not, :after_load, which is called
-after the association has been loaded (when lazy loading).
+after the association has been loaded.
 
 Each of these options can be a Symbol specifying an instance method
 that takes one argument (the associated object), or a Proc that takes
@@ -150,47 +150,23 @@ otherwise modified:
   class Author < Sequel::Model
     one_to_many :authorships
   end
-  Author.first.authorships_dataset.filter(:number < 10).first
+  Author.first.authorships_dataset.filter{|o| o.number < 10}.first
  
-You can extend a dataset with a module easily with :extend:
+You can extend a dataset with a module easily with :extend.  You can reference
+the model object that created the association dataset via the dataset's
+model_object method, and the related association reflection via the dataset's
+association_reflection method:
 
   module FindOrCreate
     def find_or_create(vals)
-      first(vals) || @opts[:models][nil].create(vals)
+      first(vals) || association_reflection.associated_class. \
+        create(vals.merge(association_reflection[:key]=>model_object.id))
     end
   end
   class Author < Sequel::Model
     one_to_many :authorships, :extend=>FindOrCreate
   end
   Author.first.authorships_dataset.find_or_create(:name=>'Blah', :number=>10)
-
-However, note that the dataset doesn't have any knowledge of the model object
-that created it via the association, so if you want to use attributes of the
-model object, you'll have to use a closure:
-
-  class Author < Sequel::Model
-    one_to_many :authorships, :dataset=>(proc do
-      key = pk
-      ds = Authorship.filter(:author_id=>key)
-      ds.meta_def(:find_or_create_by_name) do |name|
-        first(:name=>name) || Authorship.create(:name=>name, :author_id=>key)
-      end 
-      ds  
-    end)
-  end
-  Author.first.authorships_dataset.find_or_create_by_name('Bob')
-
-You can cheat if you want to:
-
-  module FindOrCreate
-    def find_or_create(vals)
-      # Exploits the fact that Sequel filters are ruby objects that
-      # can be introspected.
-      author_id = @opts[:where].args[1]
-      first(vals) || \
-        @opts[:models][nil].create(vals.merge(:author_id=>author_id))
-    end 
-  end
 
 ===has_many :through associations
 
@@ -229,7 +205,7 @@ Sequel::Model:
   @author.books
 
 If you use an association other than belongs_to in the associated model, things
-are a bit more involved:
+are a bit more involved (has_many :through a has_many association):
 
 ActiveRecord:
 
@@ -310,15 +286,25 @@ Sequel::Model:
   Firm.find(:first).invoices
 
 It is significantly more code in Sequel Model, but quite a bit of it is setting
-the intermediate associate record (the client) and the reciprocal association
+the intermediate associated record (the client) and the reciprocal association
 in the associations cache for each object, which ActiveRecord won't do for you.
 The reason you would want to do this is that then firm.invoices.first.firm or
 firm.invoices.first.client doesn't do another query to get the firm/client.
 
 ===Polymorphic Associations
 
-Polymorphic associations are really a design flaw, but if you are stuck with
-them, Sequel can handle it.
+Polymorphic associations are really a design flaw.  The only advantage
+polymorphic associations offer is that they require fewer join tables.
+
+Proof by Reductio ad absurdum: If fewer join tables are preferable, then surely
+fewer tables and columns are preferrable, so you might as well store all of
+your data in a single column in a single table if you think polymorphic
+associations are a good idea.
+
+Compelling Argument: Polymorphic associations are more complex than normal
+associations, and they break referential integrity, so the only reason you
+should use them is if you are already stuck with an existing design that
+uses them.  You should never use them in new code.
 
 ActiveRecord:
 
@@ -425,6 +411,10 @@ ActiveRecord's.  Now we will show how Sequel::Model's associations are more
 powerful.
 
 ===many_to_one/one_to_many not referencing primary key
+
+This can now be handled easily in Sequel using the :primary_key association
+option.  However, this example shows how the association was possible before
+the introduction of that option.
 
 Let's say you have two tables, invoices and clients, where each client is
 associated with many invoices.  However, instead of using the client's primary
@@ -537,7 +527,7 @@ node.children.  You can even eager load the relationship up to a certain depth:
   # Eager load three generations of generations of children for a given node 
   Node.filter(:id=>1).eager(:children=>{:children=>:children}).all.first
   # Load parents and grandparents for a group of nodes
-  Node.filter(:id < 10).eager(:parent=>:parent).all
+  Node.filter{|o| o.id < 10}.eager(:parent=>:parent).all
 
 What if you want to get all ancestors up to the root node, or all descendents,
 without knowing the depth of the tree?

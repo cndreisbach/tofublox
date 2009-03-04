@@ -40,7 +40,7 @@ module Sequel
     #
     # See Schema::AlterTableGenerator.
     def alter_table(name, generator=nil, &block)
-      @schemas.delete(name.to_sym) if @schemas
+      remove_cached_schema(name)
       generator ||= Schema::AlterTableGenerator.new(self, &block)
       alter_table_sql_list(name, generator.operations).flatten.each {|sql| execute_ddl(sql)}
     end
@@ -55,15 +55,15 @@ module Sequel
     #   end
     #
     # See Schema::Generator.
-    def create_table(name, generator=nil, &block)
-      generator ||= Schema::Generator.new(self, &block)
-      create_table_sql_list(name, *generator.create_info).flatten.each {|sql| execute_ddl(sql)}
+    def create_table(name, options={}, &block)
+      options = {:generator=>options} if options.is_a?(Schema::Generator)
+      create_table_sql_list(name, *((options[:generator] || Schema::Generator.new(self, &block)).create_info << options)).flatten.each {|sql| execute_ddl(sql)}
     end
     
     # Forcibly creates a table. If the table already exists it is dropped.
-    def create_table!(name, generator=nil, &block)
+    def create_table!(name, options={}, &block)
       drop_table(name) rescue nil
-      create_table(name, generator, &block)
+      create_table(name, options, &block)
     end
     
     # Creates a view, replacing it if it already exists:
@@ -71,7 +71,7 @@ module Sequel
     #   DB.create_or_replace_view(:cheap_items, "SELECT * FROM items WHERE price < 100")
     #   DB.create_or_replace_view(:ruby_items, DB[:items].filter(:category => 'ruby'))
     def create_or_replace_view(name, source)
-      @schemas.delete(name.to_sym) if @schemas
+      remove_cached_schema(name)
       source = source.sql if source.is_a?(Dataset)
       execute_ddl("CREATE OR REPLACE VIEW #{quote_identifier(name)} AS #{source}")
     end
@@ -109,7 +109,7 @@ module Sequel
     #   DB.drop_table(:posts, :comments)
     def drop_table(*names)
       names.each do |n|
-        @schemas.delete(n.is_a?(String) ? n.to_sym : n) if @schemas
+        remove_cached_schema(n)
         execute_ddl(drop_table_sql(n))
       end
     end
@@ -119,7 +119,7 @@ module Sequel
     #   DB.drop_view(:cheap_items)
     def drop_view(*names)
       names.each do |n|
-        @schemas.delete(n.to_sym) if @schemas
+        remove_cached_schema(n)
         execute_ddl("DROP VIEW #{quote_identifier(n)}")
       end
     end

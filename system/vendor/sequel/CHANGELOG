@@ -1,3 +1,199 @@
+=== 2.11.0 (2009-03-02)
+
+* Optimize Model.[] by using static sql when possible, for a 30-40% speed increase (jeremyevans)
+
+* Add Dataset#with_sql, which returns a clone of the datatset with static SQL (jeremyevans)
+
+* Refactor Dataset#literal so it doesn't need to be overridden in subadapters, for a 20-25% performance increase (jeremyevans)
+
+* Remove SQL::IrregularFunction, no longer used internally (jeremyevans)
+
+* Allow String#lit to take arguments and return a SQL::PlaceholderLiteralString (jeremyevans)
+
+* Add Model#set_associated_object, used by the many_to_one setter method, for easier overriding (jeremyevans)
+
+* Allow use of database independent types when casting (jeremyevans)
+
+* Give association datasets knowledge of the model object that created them and the related association reflection (jeremyevans)
+
+* Make Dataset#select, #select_more, #order, #order_more, and #get take a block that yields a SQL::VirtualRow, similar to #filter (jeremyevans)
+
+* Fix stored procedures in MySQL adapter when multiple arguments are used (clivecrous)
+
+* Add :conditions association option, for easier filtering of associated objects (jeremyevans)
+
+* Add :clone association option, for making clones of existing associations (jeremyevans)
+
+* Handle typecasting invalid date strings (and possible other types) correctly (jeremyevans)
+
+* Add :compress=>false option to MySQL adapter to turn off compression of client-server connection (tmm1)
+
+* Set SQL_AUTO_IS_NULL=0 on MySQL connections, disable with :auto_is_null=>false (tmm1)
+
+* Add :timeout option to MySQL adapter, default to 30 days (tmm1)
+
+* Set MySQL encoding using Mysql#options so it works across reconnects (tmm1)
+
+* Fully support blobs on SQLite (jeremyevans)
+
+* Add String#to_sequel_blob, alias String#to_blob to that (jeremyevans)
+
+* Fix default index names when a non-String or Symbol column is used (jeremyevans)
+
+* Fix some ruby -w warnings (jeremyevans) (#259)
+
+* Fix issues with default column values, table names, and quoting in the rename_column and drop_column support in shared SQLite adapter (jeremyevans)
+
+* Add rename_column support to SQLite shared adapter (jmhodges)
+
+* Add validates_inclusion_of validation (jdunphy)
+
+=== 2.10.0 (2009-02-03)
+
+* Don't use a default schema any longer in the shared PostgreSQL adapter (jeremyevans)
+
+* Make Dataset#quote_identifier return LiteralStrings as-is (jeremyevans)
+
+* Support symbol keys and unnested hashes in the sequel command line tool's yaml config support (jeremyevans)
+
+* Add schema parsing support to the JDBC adapter (jeremyevans)
+
+* Add per-database type translation support for schema changes, translating ruby classes to database specific types (jeremyevans)
+
+* Add Sequel::DatabaseConnectionError, for indicating that Sequel wasn't able to connect to the database (jeremyevans)
+
+* Add validates_not_string validation, useful in conjunction with raise_on_typecast_failure = false (jeremyevans)
+
+* Don't modify Model#new? and Model#changed_columns when saving a record until after the after hooks have been run (tamas, jeremyevans)
+
+* Database#quote_identifiers= now affects future schema modification statements, even if it is not used before one of the schema modification statements (jeremyevans)
+
+* Fix literalization of blobs when using the PostreSQL JDBC subadapter (jeremyevans)
+
+* Fix literalization of date and time types when using the MySQL JDBC subadapter (jeremyevans)
+
+* Convert some Java specific types to ruby types on output in the JDBC adapter (jeremyevans)
+
+* Add Database#tables method to JDBC adapter (jeremyevans)
+
+* Add H2 JDBC subadapter (logan_barnett, david_koontz, james_britt, jeremyevans)
+
+* Add identifer_output_method, used for converting identifiers coming out of the database, replacing the lowercase support on some databases (jeremyevans)
+
+* Add identifier_input_method, used for converting identifiers going into the database, replacing upcase_identifiers (jeremyevans)
+
+* Add :allow_missing validation option, useful if the database provides a good default (jeremyevans)
+
+* Fix literalization of SQL::Blobs in DataObjects and JDBC adapter's postgresql subadapters when ruby 1.9 is used (jeremyevans)
+
+* When using standard strings in the postgres adapter with the postgres-pr driver, use custom string escaping to prevent errors (jeremyevans)
+
+* Before hooks now run in reverse order of being added, so later ones are run first (tamas)
+
+* Add Firebird adapter, requires Firebird ruby driver located at http://github.com/wishdev/fb (wishdev)
+
+* Don't clobber the following Symbol instance methods when using ruby 1.9: [], <, <=, >, >= (jeremyevans)
+
+* Quote the table name and the index for PostgreSQL index creation (jeremyevans)
+
+* Add DataObjects adapter, supporting PostgreSQL, MySQL, and SQLite (jeremyevans)
+
+* Add ability for Database#create_table to take options, support specifying MySQL engine, charset, and collate per table (pusewicz, jeremyevans)
+
+* Add Model.add_hook_type class method, for adding your own hook types, mostly for use by plugin authors (pkondzior, jeremyevans)
+
+* Add Sequel.version for getting the internal version of Sequel (pusewicz, jeremyevans)
+
+=== 2.9.0 (2009-01-12)
+
+* Add -L option to sequel command line tool to load all .rb files in the given directory (pkondzior, jeremyevans)
+
+* Fix Dataset#destroy for model datasets that can't handle nested queries (jeremyevans)
+
+* Improve the error messages in parts of Sequel::Model (jeremyevans, pusewicz)
+
+* Much better support for Dataset#{union,except,intersect}, allowing chaining and respecting order (jeremyevans)
+
+* Default to logging only WARNING level messages when connecting to PostgreSQL (jeremyevans)
+
+* Fix add_foreign_key for MySQL (jeremyevans, aphyr)
+
+* Correctly literalize BigDecimal NaN and (+-)Infinity values (jeremyevans) (#256)
+
+* Make Sequel raise an Error if you attempt to subclass Sequel::Model before setting up a database connection (jeremyevans)
+
+* Add Sequel::BeforeHookFailed exception to be raised when a record fails because a before hook fails (bougyman)
+
+* Add Sequel::ValidationFailed exception to be raised when a record fails because a validation fails (bougyman)
+
+* Make Database#schema raise an error if given a table that doesn't exist (jeremyevans) (#255)
+
+* Make Model#inspect call Model#inspect_values private method for easier overloading (bougyman)
+
+* Add methods to create and drop functions, triggers, and procedural languages on PostgreSQL (jeremyevans)
+
+* Fix Dataset#count when using UNION, EXCEPT, or INTERSECT (jeremyevans)
+
+* Make SQLite keep table's primary key information when dropping columns (jmhodges)
+
+* Support dropping indicies on SQLite (jmhodges)
+
+=== 2.8.0 (2008-12-05)
+
+* Support drop column operations inside a transaction on sqlite (jeremyevans)
+
+* Support literal strings with placeholders and subselects in prepared statements (jeremyevans)
+
+* Have the connection pool remove disconnected connections when the adapter supports it (jeremyevans)
+
+* Make Dataset#exists return a LiteralString (jeremyevans)
+
+* Support multiple SQL statements in one query in the MySQL adapter (jeremyevans)
+
+* Add stored procedure support for the MySQL and JDBC adapters (jeremyevans, krsgoss) (#252)
+
+* Support options when altering a column's type (for changing enums, varchar size, etc.) (jeremyevans)
+
+* Support AliasedExpressions in tables when using implicitly qualified arguments in joins (jeremyevans)
+
+* Support Dataset#except on Oracle (jeremyevans)
+
+* Raise errors when EXCEPT/INTERSECT is used when not supported (jeremyevans)
+
+* Fix ordering of UNION, INTERSECT, and EXCEPT statements (jeremyevans) (#253)
+
+* Support aliasing subselects in the Oracle adapter (jeremyevans)
+
+* Add a subadapter for the Progress RDBMS to the ODBC adapter (:db_type=>'progress') (groveriffic) (#251)
+
+* Make MySQL and Oracle adapters raise an Error if asked to do a SELECT DISTINCT ON (jeremyevans)
+
+* Set standard_conforming_strings = ON by default when using PostgreSQL, turn off with Sequel::Postgres.force_standard_strings = false (jeremyevans) (#247)
+
+* Fix Database#rename_table when using PostgreSQL (jeremyevans) (#248)
+
+* Whether to upcase or quote identifiers can now be set separately, via Sequel.upcase_identifiers= or the :upcase_identifiers database option (jeremyevans)
+
+* Support transactions in the ODBC adapter (dlee)
+
+* Support multi_insert_sql and unicode string literals in MSSQL shared adapter (dlee)
+
+* Make PostgreSQL use the default schema if parsing the schema for all tables at once, even if :schema=>nil option is used (jeremyevans)
+
+* Make MySQL adapter not raise an error when giving an SQL::Identifier object to the schema modification methods such as create_table (jeremyevans)
+
+* The keys of the hash returned by Database#schema without a table name are now quoted strings instead of symbols (jeremyevans)
+
+* Make Database#schema to handle implicit schemas on all databases and multiple identifier object types (jeremyevans)
+
+* Remove Sequel.odbc_mssql method (jeremyevans) (#249)
+
+* More optimization of Model#initialize (jeremyevans)
+
+* Treat interval as it's own type, not an integer type (jeremyevans)
+
+* Allow use of implicitly qualified symbol as argument to Symbol#qualify (:a.qualify(:b__c)=>b.c.a), fixes model associations in different schemas (jeremyevans) (#246)
+
 === 2.7.1 (2008-11-04)
 
 * Fix PostgreSQL Date optimization so that it doesn't reject dates like 11/03/2008 (jeremyevans)

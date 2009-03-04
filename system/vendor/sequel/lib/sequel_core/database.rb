@@ -14,7 +14,7 @@ module Sequel
     include Schema::SQL
 
     # Array of supported database adapters
-    ADAPTERS = %w'ado db2 dbi informix jdbc mysql odbc odbc_mssql openbase oracle postgres sqlite'.collect{|x| x.to_sym}
+    ADAPTERS = %w'ado db2 dbi do firebird informix jdbc mysql odbc openbase oracle postgres sqlite'.collect{|x| x.to_sym}
 
     SQL_BEGIN = 'BEGIN'.freeze
     SQL_COMMIT = 'COMMIT'.freeze
@@ -22,42 +22,68 @@ module Sequel
 
     # Hash of adapters that have been used
     @@adapters = Hash.new
+    
+    # The identifier input method to use by default
+    @@identifier_input_method = nil
+
+    # The identifier output method to use by default
+    @@identifier_output_method = nil
 
     # Whether to use the single threaded connection pool by default
     @@single_threaded = false
 
     # Whether to quote identifiers (columns and tables) by default
-    @@quote_identifiers = true
+    @@quote_identifiers = nil
+
+    # The default schema to use
+    attr_accessor :default_schema
 
     # Array of SQL loggers to use for this database
     attr_accessor :loggers
-
+    
     # The options for this database
     attr_reader :opts
     
     # The connection pool for this database
     attr_reader :pool
 
-    # Whether to quote identifiers (columns and tables) for this database
-    attr_writer :quote_identifiers
-    
     # The prepared statement objects for this database, keyed by name
     attr_reader :prepared_statements
-
+    
     # Constructs a new instance of a database connection with the specified
     # options hash.
     #
     # Sequel::Database is an abstract class that is not useful by itself.
+    #
+    # Takes the following options:
+    # * :default_schema : The default schema to use, should generally be nil
+    # * :disconnection_proc: A proc used to disconnect the connection.
+    # * :identifier_input_method: A string method symbol to call on identifiers going into the database
+    # * :identifier_output_method: A string method symbol to call on identifiers coming from the database
+    # * :loggers : An array of loggers to use.
+    # * :quote_identifiers : Whether to quote identifiers
+    # * :single_threaded : Whether to use a single-threaded connection pool
+    # * :upcase_identifiers : Whether to upcase identifiers going into the database
+    #
+    # All options given are also passed to the ConnectionPool.  If a block
+    # is given, it is used as the connection_proc for the ConnectionPool.
     def initialize(opts = {}, &block)
-      @opts = opts
+      @opts ||= opts
       
-      @quote_identifiers = opts.include?(:quote_identifiers) ? opts[:quote_identifiers] : @@quote_identifiers
       @single_threaded = opts.include?(:single_threaded) ? opts[:single_threaded] : @@single_threaded
       @schemas = nil
+      @default_schema = opts.include?(:default_schema) ? opts[:default_schema] : default_schema_default
       @prepared_statements = {}
       @transactions = []
+      @identifier_input_method = nil
+      @identifier_output_method = nil
+      @quote_identifiers = nil
+      if opts.include?(:upcase_identifiers)
+        @identifier_input_method = opts[:upcase_identifiers] ? :upcase : ""
+      end
       @pool = (@single_threaded ? SingleThreadedPool : ConnectionPool).new(connection_pool_default_options.merge(opts), &block)
       @pool.connection_proc = proc{|server| connect(server)} unless block
+      @pool.disconnection_proc = proc{|conn| disconnect_connection(conn)} unless opts[:disconnection_proc]
 
       @loggers = Array(opts[:logger]) + Array(opts[:loggers])
       ::Sequel::DATABASES.push(self)
@@ -98,6 +124,9 @@ module Sequel
         if conn_string =~ /\Ajdbc:/
           c = adapter_class(:jdbc)
           opts = {:uri=>conn_string}.merge(opts)
+        elsif conn_string =~ /\Ado:/
+          c = adapter_class(:do)
+          opts = {:uri=>conn_string}.merge(opts)
         else
           uri = URI.parse(conn_string)
           scheme = uri.scheme
@@ -129,6 +158,26 @@ module Sequel
         c.new(opts)
       end
     end
+    
+    # The method to call on identifiers going into the database
+    def self.identifier_input_method
+      @@identifier_input_method
+    end
+    
+    # Set the method to call on identifiers going into the database
+    def self.identifier_input_method=(v)
+      @@identifier_input_method = v || ""
+    end
+    
+    # The method to call on identifiers coming from the database
+    def self.identifier_output_method
+      @@identifier_output_method
+    end
+    
+    # Set the method to call on identifiers coming from the database
+    def self.identifier_output_method=(v)
+      @@identifier_output_method = v || ""
+    end
 
     # Sets the default quote_identifiers mode for new databases.
     # See Sequel.quote_identifiers=.
@@ -140,6 +189,12 @@ module Sequel
     # See Sequel.single_threaded=.
     def self.single_threaded=(value)
       @@single_threaded = value
+    end
+
+    # Sets the default quote_identifiers mode for new databases.
+    # See Sequel.quote_identifiers=.
+    def self.upcase_identifiers=(value)
+      self.identifier_input_method = value ? :upcase : nil
     end
 
     ### Private Class Methods ###
@@ -212,10 +267,10 @@ module Sequel
       ds = Sequel::Dataset.new(self)
     end
     
-    # Disconnects from the database. This method should be overridden by 
-    # descendants.
+    # Disconnects all available connections from the connection pool.  If any
+    # connections are currently in use, they will not be disconnected.
     def disconnect
-      raise NotImplementedError, "#disconnect should be overridden by adapters"
+      pool.disconnect
     end
 
     # Executes the given SQL. This method should be overridden in descendants.
@@ -235,6 +290,12 @@ module Sequel
       execute(sql, opts, &block)
     end
 
+    # Method that should be used when issuing a INSERT
+    # statement.  By default, calls execute_dui.
+    def execute_insert(sql, opts={}, &block)
+      execute_dui(sql, opts, &block)
+    end
+
     # Fetches records for an arbitrary SQL statement. If a block is given,
     # it is used to iterate over the records:
     #
@@ -250,9 +311,8 @@ module Sequel
     #   DB.fetch('SELECT * FROM items WHERE name = ?', my_name).print
     def fetch(sql, *args, &block)
       ds = dataset
-      sql = sql.gsub('?') {|m|  ds.literal(args.shift)}
-      ds.opts[:sql] = sql
-      ds.fetch_rows(sql, &block) if block
+      ds.opts[:sql] = Sequel::SQL::PlaceholderLiteralString.new(sql, args)
+      ds.each(&block) if block
       ds
     end
     alias_method :>>, :fetch
@@ -270,9 +330,47 @@ module Sequel
     #   DB.get(1) #=> 1 
     #
     #   # SELECT version()
-    #   DB.get(:version[]) #=> ...
+    #   DB.get(:version.sql_function) #=> ...
     def get(expr)
       dataset.get(expr)
+    end
+    
+    # The method to call on identifiers going into the database
+    def identifier_input_method
+      case @identifier_input_method
+      when nil
+        @identifier_input_method = @opts.include?(:identifier_input_method) ? @opts[:identifier_input_method] : (@@identifier_input_method.nil? ? identifier_input_method_default : @@identifier_input_method)
+        @identifier_input_method == "" ? nil : @identifier_input_method
+      when ""
+        nil
+      else
+        @identifier_input_method
+      end
+    end
+    
+    # Set the method to call on identifiers going into the database
+    def identifier_input_method=(v)
+      reset_schema_utility_dataset
+      @identifier_input_method = v || ""
+    end
+    
+    # The method to call on identifiers coming from the database
+    def identifier_output_method
+      case @identifier_output_method
+      when nil
+        @identifier_output_method = @opts.include?(:identifier_output_method) ? @opts[:identifier_output_method] : (@@identifier_output_method.nil? ? identifier_output_method_default : @@identifier_output_method)
+        @identifier_output_method == "" ? nil : @identifier_output_method
+      when ""
+        nil
+      else
+        @identifier_output_method
+      end
+    end
+    
+    # Set the method to call on identifiers coming from the database
+    def identifier_output_method=(v)
+      reset_schema_utility_dataset
+      @identifier_output_method = v || ""
     end
     
     # Returns a string representation of the database object including the
@@ -310,9 +408,16 @@ module Sequel
       dataset.query(&block)
     end
     
+    # Whether to quote identifiers (columns and tables) for this database
+    def quote_identifiers=(v)
+      reset_schema_utility_dataset
+      @quote_identifiers = v
+    end
+    
     # Returns true if the database quotes identifiers.
     def quote_identifiers?
-      @quote_identifiers
+      return @quote_identifiers unless @quote_identifiers.nil?
+      @quote_identifiers = @opts.include?(:quote_identifiers) ? @opts[:quote_identifiers] : (@@quote_identifiers.nil? ? quote_identifiers_default : @@quote_identifiers)
     end
     
     # Returns a new dataset with the select method invoked.
@@ -322,7 +427,7 @@ module Sequel
     
     # Default serial primary key options.
     def serial_primary_key_options
-      {:primary_key => true, :type => :integer, :auto_increment => true}
+      {:primary_key => true, :type => Integer, :auto_increment => true}
     end
     
     # Returns true if the database is using a single-threaded connection pool.
@@ -335,17 +440,19 @@ module Sequel
       @pool.hold(server || :default, &block)
     end
 
-    # Returns true if a table with the given name exists.
+    # Returns true if a table with the given name exists.  This requires a query
+    # to the database unless this database object already has the schema for
+    # the given table name.
     def table_exists?(name)
-      begin 
-        if respond_to?(:tables)
-          tables.include?(name.to_sym)
-        else
+      if @schemas && @schemas[name]
+        true
+      else
+        begin 
           from(name).first
           true
+        rescue
+          false
         end
-      rescue
-        false
       end
     end
     
@@ -388,76 +495,84 @@ module Sequel
     # is invalid.
     def typecast_value(column_type, value)
       return nil if value.nil?
-      case column_type
-      when :integer
-        begin
+      begin
+        case column_type
+        when :integer
           Integer(value)
-        rescue ArgumentError => e
-          raise Sequel::Error::InvalidValue, e.message.inspect
-        end
-      when :string
-        value.to_s
-      when :float
-        begin
+        when :string
+          value.to_s
+        when :float
           Float(value)
-        rescue ArgumentError => e
-          raise Sequel::Error::InvalidValue, e.message.inspect
-        end
-      when :decimal
-        case value
-        when BigDecimal
+        when :decimal
+          case value
+          when BigDecimal
+            value
+          when String, Float
+            value.to_d
+          when Integer
+            value.to_s.to_d
+          else
+            raise Sequel::Error::InvalidValue, "invalid value for BigDecimal: #{value.inspect}"
+          end
+        when :boolean
+          case value
+          when false, 0, "0", /\Af(alse)?\z/i
+            false
+          else
+            value.blank? ? nil : true
+          end
+        when :date
+          case value
+          when Date
+            value
+          when DateTime, Time
+            Date.new(value.year, value.month, value.day)
+          when String
+            value.to_date
+          else
+            raise Sequel::Error::InvalidValue, "invalid value for Date: #{value.inspect}"
+          end
+        when :time
+          case value
+          when Time
+            value
+          when String
+            value.to_time
+          else
+            raise Sequel::Error::InvalidValue, "invalid value for Time: #{value.inspect}"
+          end
+        when :datetime
+          raise(Sequel::Error::InvalidValue, "invalid value for Datetime: #{value.inspect}") unless value.is_one_of?(DateTime, Date, Time, String)
+          if Sequel.datetime_class === value
+            # Already the correct class, no need to convert
+            value
+          else
+            # First convert it to standard ISO 8601 time, then
+            # parse that string using the time class.
+            (Time === value ? value.iso8601 : value.to_s).to_sequel_time
+          end
+        when :blob
+          ::Sequel::SQL::Blob.new(value)
+        else
           value
-        when String, Float
-          value.to_d
-        when Integer
-          value.to_s.to_d
-        else
-          raise Sequel::Error::InvalidValue, "invalid value for BigDecimal: #{value.inspect}"
         end
-      when :boolean
-        case value
-        when false, 0, "0", /\Af(alse)?\z/i
-          false
-        else
-          value.blank? ? nil : true
-        end
-      when :date
-        case value
-        when Date
-          value
-        when DateTime, Time
-          Date.new(value.year, value.month, value.day)
-        when String
-          value.to_date
-        else
-          raise Sequel::Error::InvalidValue, "invalid value for Date: #{value.inspect}"
-        end
-      when :time
-        case value
-        when Time
-          value
-        when String
-          value.to_time
-        else
-          raise Sequel::Error::InvalidValue, "invalid value for Time: #{value.inspect}"
-        end
-      when :datetime
-        raise(Sequel::Error::InvalidValue, "invalid value for Datetime: #{value.inspect}") unless value.is_one_of?(DateTime, Date, Time, String)
-        if Sequel.datetime_class === value
-          # Already the correct class, no need to convert
-          value
-        else
-          # First convert it to standard ISO 8601 time, then
-          # parse that string using the time class.
-          (Time === value ? value.iso8601 : value.to_s).to_sequel_time
-        end
-      when :blob
-        value.to_blob
-      else
-        value
+      rescue ArgumentError => exp
+        e = Sequel::Error::InvalidValue.new("#{exp.class} #{exp.message}")
+        e.set_backtrace(exp.backtrace)
+        raise e
       end
     end
+    
+    # Set whether to upcase identifiers going into the database.
+    def upcase_identifiers=(v)
+      self.identifier_input_method = v ? :upcase : nil
+    end
 
+    # Returns true if the database upcases identifiers.
+    def upcase_identifiers?
+      identifier_input_method == :upcase
+    end
+    
     # Returns the URI identifying the database.
     # This method can raise an error if the database used options
     # instead of a connection string.
@@ -477,7 +592,11 @@ module Sequel
       uri.password = @opts[:password] if uri.user
       uri.to_s
     end
-    alias_method :url, :uri
+    
+    # Explicit alias of uri for easier subclassing.
+    def url
+      uri
+    end
     
     private
     
@@ -496,9 +615,29 @@ module Sequel
       {}
     end
     
-    # Sequel doesn't use database schema's by default.
-    def default_schema
+    # The default value for default_schema.
+    def default_schema_default
       nil
+    end
+
+    # The method to apply to identifiers going into the database by default.
+    # Should be overridden in subclasses for databases that fold unquoted
+    # identifiers to lower case instead of uppercase, such as
+    # MySQL, PostgreSQL, and SQLite.
+    def identifier_input_method_default
+      :upcase
+    end
+    
+    # The method to apply to identifiers coming the database by default.
+    # Should be overridden in subclasses for databases that fold unquoted
+    # identifiers to lower case instead of uppercase, such as
+    # MySQL, PostgreSQL, and SQLite.
+    def identifier_output_method_default
+      :downcase
+    end
+    
+    def quote_identifiers_default
+      true
     end
 
     # SQL to ROLLBACK a transaction.
@@ -520,19 +659,7 @@ module Sequel
     
     # Split the schema information from the table
     def schema_and_table(table_name)
-      case table_name
-      when Symbol
-        s, t, a = dataset.send(:split_symbol, table_name)
-        [s||default_schema, t]
-      when SQL::QualifiedIdentifier
-        [table_name.table, table_name.column]
-      when SQL::Identifier
-        [default_schema, table_name.value]
-      when String
-        [default_schema, table_name]
-      else
-        raise Error, 'table_name should be a Symbol, SQL::QualifiedIdentifier, SQL::Identifier, or String'
-      end
+      schema_utility_dataset.schema_and_table(table_name)
     end
 
     # Return the options for the given server by merging the generic

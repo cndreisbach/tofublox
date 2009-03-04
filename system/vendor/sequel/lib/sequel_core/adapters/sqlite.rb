@@ -31,6 +31,7 @@ module Sequel
         db = ::SQLite3::Database.new(opts[:database])
         db.busy_timeout(opts.fetch(:timeout, 5000))
         db.type_translation = true
+        
         # Handle datetime's with Sequel.datetime_class
         prok = proc do |t,v|
           v = Time.at(v.to_i).iso8601 if UNIX_EPOCH_TIME_FORMAT.match(v)
@@ -38,17 +39,28 @@ module Sequel
         end
         db.translator.add_translator("timestamp", &prok)
         db.translator.add_translator("datetime", &prok)
+        
+        # Handle numeric values with BigDecimal
+        prok = proc{|t,v| BigDecimal.new(v) rescue v}
+        db.translator.add_translator("numeric", &prok)
+        db.translator.add_translator("decimal", &prok)
+        db.translator.add_translator("money", &prok)
+        
+        # Handle floating point values with Float
+        prok = proc{|t,v| Float(v) rescue v}
+        db.translator.add_translator("float", &prok)
+        db.translator.add_translator("real", &prok)
+        db.translator.add_translator("double precision", &prok)
+        
+        # Handle blob values with Sequel::SQL::Blob
+        db.translator.add_translator("blob"){|t,v| ::Sequel::SQL::Blob.new(v)}
+        
         db
       end
       
       # Return instance of Sequel::SQLite::Dataset with the given options.
       def dataset(opts = nil)
         SQLite::Dataset.new(self, opts)
-      end
-      
-      # Disconnect all connections from the database.
-      def disconnect
-        @pool.disconnect {|c| c.close}
       end
       
       # Run the given SQL with the given arguments and return the number of changed rows.
@@ -79,10 +91,14 @@ module Sequel
           return yield(conn) if conn.transaction_active?
           begin
             result = nil
+            log_info('Transaction.begin')
             conn.transaction{result = yield(conn)}
             result
           rescue ::Exception => e
+            log_info('Transaction.rollback')
             transaction_error(e, SQLite3::Exception)
+          ensure
+            log_info('Transaction.commit') unless e
           end
         end
       end
@@ -110,6 +126,11 @@ module Sequel
         o[:max_connections] = 1 if @opts[:database] == ':memory:' || @opts[:database].blank?
         o
       end
+
+      # Disconnect given connections from the database.
+      def disconnect_connection(c)
+        c.close
+      end
     end
     
     # Dataset class for SQLite datasets that use the ruby-sqlite3 driver.
@@ -135,18 +156,10 @@ module Sequel
         
         private
         
-        # Work around for the default prepared statement and argument
-        # mapper code, which wants a hash that maps.  SQLite doesn't
-        # need to do this, but still requires a value for the argument
-        # in order for the substitution to work correctly.
-        def prepared_args_hash
-          true
-        end
-        
         # SQLite uses a : before the name of the argument for named
         # arguments.
         def prepared_arg(k)
-          "#{prepared_arg_placeholder}#{k}".lit
+          LiteralString.new("#{prepared_arg_placeholder}#{k}")
         end
       end
       
@@ -191,7 +204,7 @@ module Sequel
       # Yield a hash for each row in the dataset.
       def fetch_rows(sql)
         execute(sql) do |result|
-          @columns = result.columns.map {|c| c.to_sym}
+          @columns = result.columns.map{|c| output_identifier(c)}
           column_count = @columns.size
           result.each do |values|
             row = {}
@@ -201,27 +214,10 @@ module Sequel
         end
       end
       
-      # Use the ISO format for dates and timestamps, and quote strings
-      # using the ::SQLite3::Database.quote method.
-      def literal(v)
-        case v
-        when LiteralString
-          v
-        when String
-          "'#{::SQLite3::Database.quote(v)}'"
-        when Time
-          literal(v.iso8601)
-        when Date, DateTime
-          literal(v.to_s)
-        else
-          super
-        end
-      end
-      
       # Prepare the given type of query with the given name and store
       # it in the database.  Note that a new native prepared statement is
       # created on each call to this prepared statement.
-      def prepare(type, name, values=nil)
+      def prepare(type, name=nil, values=nil)
         ps = to_prepared_statement(type, values)
         ps.extend(PreparedStatementMethods)
         db.prepared_statements[name] = ps if name
@@ -230,6 +226,10 @@ module Sequel
       
       private
       
+      def literal_string(v)
+        "'#{::SQLite3::Database.quote(v)}'"
+      end
+
       # SQLite uses a : before the name of the argument as a placeholder.
       def prepared_arg_placeholder
         PREPARED_ARG_PLACEHOLDER

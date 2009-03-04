@@ -4,15 +4,6 @@ module Sequel
     # to be called automatically via set.
     RESTRICTED_SETTER_METHODS = %w"== === []= taguri= typecast_empty_string_to_nil= typecast_on_assignment= strict_param_setting= raise_on_save_failure= raise_on_typecast_failure="
 
-    # The current cached associations.  A hash with the keys being the
-    # association name symbols and the values being the associated object
-    # or nil (many_to_one), or the array of associated objects (*_to_many).
-    attr_reader :associations
-
-    # The columns that have been updated.  This isn't completely accurate,
-    # see Model#[]=.
-    attr_reader :changed_columns
-
     # The hash of attribute values.  Keys are symbols with the names of the
     # underlying database columns.
     attr_reader :values
@@ -32,9 +23,7 @@ module Sequel
     #   string keys will work if from_db is false.
     # * from_db - should only be set by Model.load, forget it
     #   exists.
-    def initialize(values = {}, from_db = false, &block)
-      @associations = {}
-      @changed_columns = []
+    def initialize(values = {}, from_db = false)
       if from_db
         @new = false
         @values = values
@@ -42,8 +31,8 @@ module Sequel
         @values = {}
         @new = true
         set(values)
-        @changed_columns.clear 
-        yield self if block
+        changed_columns.clear 
+        yield self if block_given?
       end
       after_initialize
     end
@@ -61,7 +50,7 @@ module Sequel
       # If the column isn't in @values, we can't assume it is
       # NULL in the database, so assume it has changed.
       if new? || !@values.include?(column) || value != @values[column]
-        @changed_columns << column unless @changed_columns.include?(column)
+        changed_columns << column unless changed_columns.include?(column)
         @values[column] = typecast_value(column, value)
       end
     end
@@ -83,6 +72,19 @@ module Sequel
     # the model makes it so you can use model instead of
     # self.class.
     alias_method :model, :class
+
+    # The current cached associations.  A hash with the keys being the
+    # association name symbols and the values being the associated object
+    # or nil (many_to_one), or the array of associated objects (*_to_many).
+    def associations
+      @associations ||= {}
+    end
+
+    # The columns that have been updated.  This isn't completely accurate,
+    # see Model#[]=.
+    def changed_columns
+      @changed_columns ||= []
+    end
 
     # Deletes and returns self.  Does not run destroy hooks.
     # Look into using destroy instead.
@@ -133,7 +135,7 @@ module Sequel
     # Returns a string representation of the model instance including
     # the class name and values.
     def inspect
-      "#<#{model.name} @values=#{@values.inspect}>"
+      "#<#{model.name} @values=#{inspect_values}>"
     end
 
     # Returns attribute names as an array of symbols.
@@ -171,7 +173,8 @@ module Sequel
     # exists in the database.
     def refresh
       @values = this.first || raise(Error, "Record not found")
-      @associations.clear
+      changed_columns.clear
+      associations.clear
       self
     end
     alias_method :reload, :refresh
@@ -184,8 +187,7 @@ module Sequel
     # Otherwise, returns self. You can provide an optional list of
     # columns to update, in which case it only updates those columns.
     def save(*columns)
-      return save_failure(:save) unless valid?
-      save!(*columns)
+      valid? ? save!(*columns) : save_failure(:invalid)
     end
 
     # Creates or updates the record, without attempting to validate
@@ -197,7 +199,7 @@ module Sequel
     def save!(*columns)
       opts = columns.extract_options!
       return save_failure(:save) if before_save == false
-      if @new
+      if new?
         return save_failure(:create) if before_create == false
         ds = model.dataset
         if ds.respond_to?(:insert_select) and h = ds.insert_select(@values)
@@ -210,26 +212,28 @@ module Sequel
           if (pk = primary_key) && !(Array === pk) && !@values[pk]
             @values[pk] = iid
           end
-          if pk
-            @this = nil # remove memoized this dataset
-            refresh
-          end
+          @this = nil if pk
         end
-        @new = false
         after_create
+        after_save
+        @new = false
+        refresh if pk
       else
         return save_failure(:update) if before_update == false
         if columns.empty?
-          vals = opts[:changed] ? @values.reject{|k,v| !@changed_columns.include?(k)} : @values
+          vals = opts[:changed] ? @values.reject{|k,v| !changed_columns.include?(k)} : @values
           this.update(vals)
-          @changed_columns = []
         else # update only the specified columns
-          this.update(@values.reject {|k, v| !columns.include?(k)})
-          @changed_columns.reject! {|c| columns.include?(c)}
+          this.update(@values.reject{|k, v| !columns.include?(k)})
         end
         after_update
+        after_save
+        if columns.empty?
+          changed_columns.clear
+        else
+          changed_columns.reject!{|c| columns.include?(c)}
+        end
       end
-      after_save
       self
     end
     
@@ -237,7 +241,7 @@ module Sequel
     # chanaged.  If no columns have been changed, returns nil.  If unable to
     # save, returns false unless raise_on_save_failure is true.
     def save_changes
-      save(:changed=>true) || false unless @changed_columns.empty?
+      save(:changed=>true) || false unless changed_columns.empty?
     end
 
     # Updates the instance with the supplied values with support for virtual
@@ -339,10 +343,14 @@ module Sequel
 
     # Backbone behind association_dataset
     def _dataset(opts)
-      raise(Sequel::Error, 'model object does not have a primary key') if opts.dataset_need_primary_key? && !pk
+      raise(Sequel::Error, "model object #{model} does not have a primary key") if opts.dataset_need_primary_key? && !pk
       ds = send(opts._dataset_method)
+      ds.extend(Associations::DatasetMethods)
+      ds.model_object = self
+      ds.association_reflection = opts
       opts[:extend].each{|m| ds.extend(m)}
       ds = ds.select(*opts.select) if opts.select
+      ds = ds.filter(opts[:conditions]) if opts[:conditions]
       ds = ds.order(*opts[:order]) if opts[:order]
       ds = ds.limit(*opts[:limit]) if opts[:limit]
       ds = ds.eager(*opts[:eager]) if opts[:eager]
@@ -353,11 +361,11 @@ module Sequel
 
     # Add the given associated object to the given association
     def add_associated_object(opts, o)
-      raise(Sequel::Error, 'model object does not have a primary key') unless pk
-      raise(Sequel::Error, 'associated object does not have a primary key') if opts.need_associated_primary_key? && !o.pk
+      raise(Sequel::Error, "model object #{model} does not have a primary key") unless pk
+      raise(Sequel::Error, "associated object #{o.model} does not have a primary key") if opts.need_associated_primary_key? && !o.pk
       return if run_association_callbacks(opts, :before_add, o) == false
       send(opts._add_method, o)
-      @associations[opts[:name]].push(o) if @associations.include?(opts[:name])
+      associations[opts[:name]].push(o) if associations.include?(opts[:name])
       add_reciprocal_object(opts, o)
       run_association_callbacks(opts, :after_add, o)
       o
@@ -375,11 +383,16 @@ module Sequel
       end
     end
 
+    # Default inspection output for a record, overwrite to change the way #inspect prints the @values hash
+    def inspect_values
+      @values.inspect
+    end
+
     # Load the associated objects using the dataset
     def load_associated_objects(opts, reload=false)
       name = opts[:name]
-      if @associations.include?(name) and !reload
-        @associations[name]
+      if associations.include?(name) and !reload
+        associations[name]
       else
         objs = if opts.returns_array?
           send(opts.dataset_method).all
@@ -393,26 +406,26 @@ module Sequel
         run_association_callbacks(opts, :after_load, objs)
         # Only one_to_many associations should set the reciprocal object
         objs.each{|o| add_reciprocal_object(opts, o)} if opts.set_reciprocal_to_self?
-        @associations[name] = objs
+        associations[name] = objs
       end
     end
 
     # Remove all associated objects from the given association
     def remove_all_associated_objects(opts)
-      raise(Sequel::Error, 'model object does not have a primary key') unless pk
+      raise(Sequel::Error, "model object #{model} does not have a primary key") unless pk
       send(opts._remove_all_method)
-      ret = @associations[opts[:name]].each{|o| remove_reciprocal_object(opts, o)} if @associations.include?(opts[:name])
-      @associations[opts[:name]] = []
+      ret = associations[opts[:name]].each{|o| remove_reciprocal_object(opts, o)} if associations.include?(opts[:name])
+      associations[opts[:name]] = []
       ret
     end
 
     # Remove the given associated object from the given association
     def remove_associated_object(opts, o)
-      raise(Sequel::Error, 'model object does not have a primary key') unless pk
-      raise(Sequel::Error, 'associated object does not have a primary key') if opts.need_associated_primary_key? && !o.pk
+      raise(Sequel::Error, "model object #{model} does not have a primary key") unless pk
+      raise(Sequel::Error, "associated object #{o.model} does not have a primary key") if opts.need_associated_primary_key? && !o.pk
       return if run_association_callbacks(opts, :before_remove, o) == false
       send(opts._remove_method, o)
-      @associations[opts[:name]].delete_if{|x| o === x} if @associations.include?(opts[:name])
+      associations[opts[:name]].delete_if{|x| o === x} if associations.include?(opts[:name])
       remove_reciprocal_object(opts, o)
       run_association_callbacks(opts, :after_remove, o)
       o
@@ -444,16 +457,39 @@ module Sequel
           raise Error, "callbacks should either be Procs or Symbols"
         end
         if res == false and stop_on_false
-          save_failure("modify association for", raise_error)
+          raise(BeforeHookFailed, "Unable to modify association for record: one of the #{callback_type} hooks returned false") if raise_error
           return false
         end
       end
     end
 
     # Raise an error if raise_on_save_failure is true
-    def save_failure(action, raise_error = nil)
-      raise_error = raise_on_save_failure if raise_error.nil?
-      raise(Error, "unable to #{action} record") if raise_error
+    def save_failure(type)
+      if raise_on_save_failure
+        if type == :invalid
+          raise ValidationFailed, errors.full_messages.join(', ')
+        else
+          raise BeforeHookFailed, "one of the before_#{type} hooks returned false"
+        end
+      end
+    end
+
+    # Set the given object as the associated object for the given association
+    def set_associated_object(opts, o)
+      raise(Sequel::Error, "model object #{model} does not have a primary key") if o && !o.pk
+      old_val = send(opts.association_method)
+      return o if old_val == o
+      return if old_val and run_association_callbacks(opts, :before_remove, old_val) == false
+      return if o and run_association_callbacks(opts, :before_add, o) == false
+      send(opts._setter_method, o)
+      associations[opts[:name]] = o
+      remove_reciprocal_object(opts, old_val) if old_val
+      if o
+        add_reciprocal_object(opts, o) 
+        run_association_callbacks(opts, :after_add, o)
+      end
+      run_association_callbacks(opts, :after_remove, old_val) if old_val
+      o
     end
 
     # Set the columns, filtered by the only and except arrays.
@@ -513,11 +549,7 @@ module Sequel
       begin
         model.db.typecast_value(col_schema[:type], value)
       rescue Error::InvalidValue
-        if raise_on_typecast_failure
-          raise
-        else
-          value
-        end
+        raise_on_typecast_failure ? raise : value
       end
     end
 

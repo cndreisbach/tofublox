@@ -12,7 +12,11 @@ module Sequel
       SET_DEFAULT = 'SET DEFAULT'.freeze
       SET_NULL = 'SET NULL'.freeze
       TYPES = Hash.new {|h, k| k}
-      TYPES[:double] = 'double precision'
+      TYPES.merge!(:double=>'double precision', String=>'varchar(255)',
+        Integer=>'integer', Fixnum=>'integer', Bignum=>'bigint',
+        Float=>'double precision', BigDecimal=>'numeric', Numeric=>'numeric',
+        Date=>'date', DateTime=>'timestamp', Time=>'timestamp', File=>'blob',
+        TrueClass=>'boolean', FalseClass=>'boolean')
       UNDERSCORE = '_'.freeze
       UNIQUE = ' UNIQUE'.freeze
       UNSIGNED = ' UNSIGNED'.freeze
@@ -29,7 +33,7 @@ module Sequel
         when :rename_column
           "RENAME COLUMN #{quoted_name} TO #{quote_identifier(op[:new_name])}"
         when :set_column_type
-          "ALTER COLUMN #{quoted_name} TYPE #{op[:type]}"
+          "ALTER COLUMN #{quoted_name} TYPE #{type_literal(op)}"
         when :set_column_default
           "ALTER COLUMN #{quoted_name} SET DEFAULT #{literal(op[:default])}"
         when :set_column_null
@@ -110,7 +114,7 @@ module Sequel
       # Array of SQL DDL statements, the first for creating a table with the given
       # name and column specifications, and the others for specifying indexes on
       # the table.
-      def create_table_sql_list(name, columns, indexes = nil)
+      def create_table_sql_list(name, columns, indexes = nil, options = {})
         sql = ["CREATE TABLE #{quote_schema_table(name)} (#{column_list_sql(columns)})"]
         sql.concat(index_list_sql_list(name, indexes)) if indexes && !indexes.empty?
         sql
@@ -120,7 +124,7 @@ module Sequel
       # for certain databases.
       def default_index_name(table_name, columns)
         schema, table = schema_and_table(table_name)
-        "#{"#{schema}_" if schema and schema != default_schema}#{table}_#{columns.join(UNDERSCORE)}_index"
+        "#{"#{schema}_" if schema and schema != default_schema}#{table}_#{columns.map{|c| c.is_one_of?(String, Symbol) ? c : literal(c).gsub(/\W/, '_')}.join(UNDERSCORE)}_index"
       end
     
       # The SQL to drop an index for the table.
@@ -187,9 +191,9 @@ module Sequel
         end
       end
       
+      # Proxy the quote_schema_table method to the dataset
       def quote_schema_table(table)
-        schema, table = schema_and_table(table)
-        "#{"#{quote_identifier(schema)}." if schema}#{quote_identifier(table)}"
+        schema_utility_dataset.quote_schema_table(table)
       end
       
       # Proxy the quote_identifier method to the dataset, used for quoting tables and columns.
@@ -202,7 +206,7 @@ module Sequel
         "ALTER TABLE #{quote_schema_table(name)} RENAME TO #{quote_schema_table(new_name)}"
       end
 
-      # Parse the schema from the database using the SQL standard INFORMATION_SCHEMA.
+      # Parse the schema from the database.
       # If the table_name is not given, returns the schema for all tables as a hash.
       # If the table_name is given, returns the schema for a single table as an
       # array with all members being arrays of length 2.  Available options are:
@@ -212,11 +216,19 @@ module Sequel
       #   unless you are sure that schema has not been called before with a
       #   table_name, otherwise you may only getting the schemas for tables
       #   that have been requested explicitly.
-      def schema(table_name = nil, opts={})
-        table_name = table_name.to_sym if table_name
+      # * :schema - An explicit schema to use.  It may also be implicitly provided
+      #   via the table name.
+      def schema(table = nil, opts={})
+        raise(Error, 'schema parsing is not implemented on this database') unless respond_to?(:schema_parse_table, true)
+
+        if table
+          sch, table_name = schema_and_table(table)
+          quoted_name = quote_schema_table(table)
+        end
+        opts = opts.merge(:schema=>sch) if sch && !opts.include?(:schema)
         if opts[:reload] && @schemas
           if table_name
-            @schemas.delete(table_name)
+            @schemas.delete(quoted_name)
           else
             @schemas = nil
           end
@@ -224,28 +236,26 @@ module Sequel
 
         if @schemas
           if table_name
-            return @schemas[table_name] if @schemas[table_name]
+            return @schemas[quoted_name] if @schemas[quoted_name]
           else
             return @schemas
           end
         end
+        
+        raise(Error, '#tables does not exist, you must provide a specific table to #schema') if table.nil? && !respond_to?(:tables, true)
+
+        @schemas ||= Hash.new do |h,k|
+          quote_name = quote_schema_table(k)
+          h[quote_name] if h.include?(quote_name)
+        end
 
         if table_name
-          @schemas ||= {}
-          if respond_to?(:schema_parse_table, true)
-            @schemas[table_name] ||= schema_parse_table(table_name, opts)
-          else
-            raise Error, 'schema parsing is not implemented on this database'
-          end
+          cols = schema_parse_table(table_name, opts)
+          raise(Error, 'schema parsing returned no columns, table probably doesn\'t exist') if cols.blank?
+          @schemas[quoted_name] = cols
         else
-          if respond_to?(:schema_parse_tables, true)
-            @schemas = schema_parse_tables(opts)
-          elsif respond_to?(:schema_parse_table, true) and respond_to?(:tables, true)
-            tables.each{|t| schema(t, opts)}
-            @schemas
-          else
-            raise Error, 'schema parsing is not implemented on this database'
-          end
+          tables.each{|t| @schemas[quote_schema_table(t)] = schema_parse_table(t.to_s, opts)}
+          @schemas
         end
       end
       
@@ -256,39 +266,53 @@ module Sequel
       
       private
 
+      # Remove the cached schema for the given schema name
+      def remove_cached_schema(table)
+        @schemas.delete(quote_schema_table(table)) if @schemas
+      end
+      
+      # Remove the cached schema_utility_dataset, because the identifier
+      # quoting has changed.
+      def reset_schema_utility_dataset
+        @schema_utility_dataset = nil
+      end
+
       # Match the database's column type to a ruby type via a
       # regular expression.  The following ruby types are supported:
       # integer, string, date, datetime, boolean, and float.
       def schema_column_type(db_type)
         case db_type
-        when /\Atinyint/
+        when /\Atinyint/io
           Sequel.convert_tinyint_to_bool ? :boolean : :integer
-        when /\A(int(eger)?|bigint|smallint)/
-          :integer
-        when /\A(character( varying)?|varchar|text)/
+        when /\Ainterval\z/io
+          :interval
+        when /\A(character( varying)?|varchar|text)/io
           :string
-        when /\Adate\z/
+        when /\A(int(eger)?|bigint|smallint)/io
+          :integer
+        when /\Adate\z/io
           :date
-        when /\A(datetime|timestamp( with(out)? time zone)?)\z/
+        when /\A(datetime|timestamp( with(out)? time zone)?)\z/io
           :datetime
-        when /\Atime( with(out)? time zone)?\z/
+        when /\Atime( with(out)? time zone)?\z/io
           :time
-        when "boolean"
+        when /\Aboolean\z/io
           :boolean
-        when /\A(real|float|double( precision)?)\z/
+        when /\A(real|float|double( precision)?)\z/io
           :float
-        when /\A(numeric(\(\d+,\d+\))?|decimal|money)\z/
+        when /\A(numeric(\(\d+,\d+\))?|decimal|money)\z/io
           :decimal
-        when "bytea"
+        when /\Abytea\z/io
           :blob
         end
       end
 
       # SQL fragment specifying the type of a given column.
       def type_literal(column)
-        column[:size] ||= 255 if column[:type] == :varchar
+        type = type_literal_base(column)
+        column[:size] ||= 255 if type.to_s == 'varchar'
         elements = column[:size] || column[:elements]
-        "#{type_literal_base(column)}#{literal(Array(elements)) if elements}#{UNSIGNED if column[:unsigned]}"
+        "#{type}#{literal(Array(elements)) if elements}#{UNSIGNED if column[:unsigned]}"
       end
 
       # SQL fragment specifying the base type of a given column,

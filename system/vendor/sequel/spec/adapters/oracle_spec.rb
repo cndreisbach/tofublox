@@ -71,7 +71,7 @@ context "An Oracle dataset" do
       {:name => 'def'}
     ]
            
-    @d.order(:value.DESC).limit(1).to_a.should == [
+    @d.order(:value.desc).limit(1).to_a.should == [
       {:name => 'def', :value => 789}                                        
     ]
 
@@ -80,7 +80,7 @@ context "An Oracle dataset" do
       {:name => 'abc', :value => 456} 
     ]
     
-    @d.order(:value.DESC).filter(:name => 'abc').to_a.should == [
+    @d.order(:value.desc).filter(:name => 'abc').to_a.should == [
       {:name => 'abc', :value => 456},
       {:name => 'abc', :value => 123} 
     ]
@@ -89,7 +89,7 @@ context "An Oracle dataset" do
       {:name => 'abc', :value => 123}                                        
     ]
         
-    @d.filter(:name => 'abc').order(:value.DESC).limit(1).to_a.should == [
+    @d.filter(:name => 'abc').order(:value.desc).limit(1).to_a.should == [
       {:name => 'abc', :value => 456}                                        
     ]
     
@@ -113,25 +113,25 @@ context "An Oracle dataset" do
     
     @d.max(:value).to_i.should == 789
     
-    @d.select(:name, :AVG[:value]).filter(:name => 'abc').group(:name).to_a.should == [
+    @d.select(:name, :AVG.sql_function(:value)).filter(:name => 'abc').group(:name).to_a.should == [
       {:name => 'abc', :"avg(value)" => (456+123)/2.0}
     ]
 
-    @d.select(:AVG[:value]).group(:name).order(:name).limit(1).to_a.should == [
+    @d.select(:AVG.sql_function(:value)).group(:name).order(:name).limit(1).to_a.should == [
       {:"avg(value)" => (456+123)/2.0}
     ]
         
-    @d.select(:name, :AVG[:value]).group(:name).order(:name).to_a.should == [
+    @d.select(:name, :AVG.sql_function(:value)).group(:name).order(:name).to_a.should == [
       {:name => 'abc', :"avg(value)" => (456+123)/2.0},
       {:name => 'def', :"avg(value)" => 789*1.0}
     ]
     
-    @d.select(:name, :AVG[:value]).group(:name).order(:name).to_a.should == [
+    @d.select(:name, :AVG.sql_function(:value)).group(:name).order(:name).to_a.should == [
       {:name => 'abc', :"avg(value)" => (456+123)/2.0},
       {:name => 'def', :"avg(value)" => 789*1.0}
     ]
 
-    @d.select(:name, :AVG[:value]).group(:name).having(:name => ['abc', 'def']).order(:name).to_a.should == [
+    @d.select(:name, :AVG.sql_function(:value)).group(:name).having(:name => ['abc', 'def']).order(:name).to_a.should == [
       {:name => 'abc', :"avg(value)" => (456+123)/2.0},
       {:name => 'def', :"avg(value)" => 789*1.0}
     ]
@@ -214,9 +214,31 @@ context "Joined Oracle dataset" do
       {:id => 4, :title => 'ddd', :cat_name => nil} 
     ]
     
-    @d1.left_outer_join(:categories, :id => :category_id).select(:books__id, :title, :cat_name).order(:books__id.DESC).limit(2, 0).to_a.should == [      
+    @d1.left_outer_join(:categories, :id => :category_id).select(:books__id, :title, :cat_name).order(:books__id.desc).limit(2, 0).to_a.should == [      
       {:id => 4, :title => 'ddd', :cat_name => nil}, 
       {:id => 3, :title => 'ccc', :cat_name => 'rails'}
     ]      
   end  
+end
+
+context "Oracle aliasing" do
+  setup do
+    @d1 = ORACLE_DB[:books]
+    @d1.delete # remove all records
+    @d1 << {:id => 1, :title => 'aaa', :category_id => 100}
+    @d1 << {:id => 2, :title => 'bbb', :category_id => 100}
+    @d1 << {:id => 3, :title => 'bbb', :category_id => 100}
+  end
+
+  specify "should allow columns to be renamed" do
+    @d1.select(:title.as(:name)).order_by(:id).to_a.should == [
+      { :name => 'aaa' },
+      { :name => 'bbb' },
+      { :name => 'bbb' },
+    ]
+  end
+
+  specify "nested queries should work" do
+    @d1.select(:title).group_by(:title).count.should == 2
+  end
 end

@@ -1,81 +1,64 @@
+require 'sequel_core/adapters/utils/date_format'
+require 'sequel_core/adapters/utils/unsupported'
+
 module Sequel
   module Oracle
     module DatabaseMethods
-      def tables
-        from(:tab).select(:tname).filter(:tabtype => 'TABLE').map do |r|
-          r[:tname].downcase.to_sym
-        end
+      def tables(opts={})
+        ds = from(:tab).server(opts[:server]).select(:tname).filter(:tabtype => 'TABLE')
+        ds.map{|r| ds.send(:output_identifier, r[:tname])}
       end
 
       def table_exists?(name)
-        from(:tab).filter(:tname => name.to_s.upcase, :tabtype => 'TABLE').count > 0
+        from(:tab).filter(:tname =>dataset.send(:input_identifier, name), :tabtype => 'TABLE').count > 0
       end
     end
     
     module DatasetMethods
+      include Dataset::UnsupportedIntersectExceptAll
+      include Dataset::SQLStandardDateFormat
+
+      SELECT_CLAUSE_ORDER = %w'distinct columns from join where group having compounds order limit'.freeze
+
+      # Oracle uses MINUS instead of EXCEPT, and doesn't support EXCEPT ALL
+      def except(dataset, all = false)
+        raise(Sequel::Error, "EXCEPT ALL not supported") if all
+        compound_clone(:minus, dataset, all)
+      end
+
       def empty?
         db[:dual].where(exists).get(1) == nil
       end
 
-      # Formats a SELECT statement using the given options and the dataset
-      # options.
-      def select_sql(opts = nil)
-        opts = opts ? @opts.merge(opts) : @opts
+      private
 
-        if sql = opts[:sql]
-          return sql
-        end
+      # Oracle doesn't support the use of AS when aliasing a dataset.  It doesn't require
+      # the use of AS anywhere, so this disables it in all cases.
+      def as_sql(expression, aliaz)
+        "#{expression} #{quote_identifier(aliaz)}"
+      end
 
-        columns = opts[:select]
-        select_columns = columns ? column_list(columns) : '*'
-        sql = opts[:distinct] ? \
-        "SELECT DISTINCT #{select_columns}" : \
-        "SELECT #{select_columns}"
-        
-        if opts[:from]
-          sql << " FROM #{source_list(opts[:from])}"
-        end
-        
-        if join = opts[:join]
-          join.each{|j| sql << literal(j)}
-        end
+      def select_clause_order
+        SELECT_CLAUSE_ORDER
+      end
 
-        if where = opts[:where]
-          sql << " WHERE #{literal(where)}"
+      # Oracle doesn't support DISTINCT ON
+      def select_distinct_sql(sql, opts)
+        if opts[:distinct]
+          raise(Error, "DISTINCT ON not supported by Oracle") unless opts[:distinct].empty?
+          sql << " DISTINCT"
         end
+      end
 
-        if group = opts[:group]
-          sql << " GROUP BY #{expression_list(group)}"
-        end
-
-        if having = opts[:having]
-          sql << " HAVING #{literal(having)}"
-        end
-
-        if union = opts[:union]
-          sql << (opts[:union_all] ? \
-            " UNION ALL #{union.sql}" : " UNION #{union.sql}")
-        elsif intersect = opts[:intersect]
-          sql << (opts[:intersect_all] ? \
-            " INTERSECT ALL #{intersect.sql}" : " INTERSECT #{intersect.sql}")
-        elsif except = opts[:except]
-          sql << (opts[:except_all] ? \
-            " EXCEPT ALL #{except.sql}" : " EXCEPT #{except.sql}")
-        end
-
-        if order = opts[:order]
-          sql << " ORDER BY #{expression_list(order)}"
-        end
-
+      # Oracle requires a subselect to do limit and offset
+      def select_limit_sql(sql, opts)
         if limit = opts[:limit]
           if (offset = opts[:offset]) && (offset > 0)
-            sql = "SELECT * FROM (SELECT raw_sql_.*, ROWNUM raw_rnum_ FROM(#{sql}) raw_sql_ WHERE ROWNUM <= #{limit + offset}) WHERE raw_rnum_ > #{offset}"
+            sql.replace("SELECT * FROM (SELECT raw_sql_.*, ROWNUM raw_rnum_ FROM(#{sql}) raw_sql_ WHERE ROWNUM <= #{limit + offset}) WHERE raw_rnum_ > #{offset}")
           else
-            sql = "SELECT * FROM (#{sql}) WHERE ROWNUM <= #{limit}"
+            sql.replace("SELECT * FROM (#{sql}) WHERE ROWNUM <= #{limit}")
           end
         end
-
-        sql
       end
     end
   end

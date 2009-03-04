@@ -6,6 +6,12 @@ module Sequel
     class Database < Sequel::Database
       include DatabaseMethods
       set_adapter_scheme :oracle
+
+      # ORA-00028: your session has been killed
+      # ORA-01012: not logged on
+      # ORA-03113: end-of-file on communication channel
+      # ORA-03114: not connected to ORACLE
+      CONNECTION_ERROR_CODES = [ 28, 1012, 3113, 3114 ]      
       
       def connect(server)
         opts = server_opts(server)
@@ -21,10 +27,6 @@ module Sequel
         conn
       end
       
-      def disconnect
-        @pool.disconnect {|c| c.logoff}
-      end
-    
       def dataset(opts = nil)
         Oracle::Dataset.new(self, opts)
       end
@@ -32,9 +34,17 @@ module Sequel
       def execute(sql, opts={})
         log_info(sql)
         synchronize(opts[:server]) do |conn|
-          r = conn.exec(sql)
-          yield(r) if block_given?
-          r
+          begin
+            r = conn.exec(sql)
+            yield(r) if block_given?
+            r
+          rescue OCIException => e
+            if CONNECTION_ERROR_CODES.include?(e.code)  
+              raise(Sequel::DatabaseDisconnectError)              
+            else
+              raise
+            end
+          end
         end
       end
       alias_method :do, :execute
@@ -57,27 +67,24 @@ module Sequel
           end
         end
       end
+
+      private
+
+      def disconnect_connection(c)
+        c.logoff
+      end
     end
     
     class Dataset < Sequel::Dataset
       include DatasetMethods
 
-      def literal(v)
-        case v
-        when OraDate
-          literal(Time.local(*v.to_a))
-        else
-          super
-        end
-      end
-
       def fetch_rows(sql, &block)
         execute(sql) do |cursor|
           begin
-            @columns = cursor.get_col_names.map {|c| c.downcase.to_sym}
+            @columns = cursor.get_col_names.map{|c| output_identifier(c)}
             while r = cursor.fetch
               row = {}
-              r.each_with_index {|v, i| row[columns[i]] = v unless columns[i] == :raw_rnum_}
+              r.each_with_index {|v, i| row[@columns[i]] = v unless @columns[i] == :raw_rnum_}
               yield row
             end
           ensure
@@ -85,6 +92,17 @@ module Sequel
           end
         end
         self
+      end
+
+      private
+
+      def literal_other(v)
+        case v
+        when OraDate
+          literal_time(Time.local(*v.to_a))
+        else
+          super
+        end
       end
     end
   end

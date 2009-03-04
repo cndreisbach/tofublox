@@ -121,7 +121,7 @@ class String
   include Sequel::SQL::AliasMethods
   include Sequel::SQL::CastMethods
 
-  # Converts a string into an LiteralString, in order to override string
+  # Converts a string into a Sequel::LiteralString, in order to override string
   # literalization, e.g.:
   #
   #   DB[:items].filter(:abc => 'def').sql #=>
@@ -130,8 +130,12 @@ class String
   #   DB[:items].filter(:abc => 'def'.lit).sql #=>
   #     "SELECT * FROM items WHERE (abc = def)"
   #
-  def lit
-    Sequel::LiteralString.new(self)
+  # You can also provide arguments, to create a Sequel::SQL::PlaceholderLiteralString:
+  #
+  #    DB[:items].select{|o| o.count('DISTINCT ?'.lit(:a))}.sql #=>
+  #      "SELECT count(DISTINCT a) FROM items"
+  def lit(*args)
+    args.empty? ? Sequel::LiteralString.new(self) : Sequel::SQL::PlaceholderLiteralString.new(self, args)
   end
   alias_method :expr, :lit
   
@@ -149,15 +153,23 @@ class String
 
   # Returns a Blob that holds the same data as this string. Blobs provide proper
   # escaping of binary data.
-  def to_blob
+  def to_sequel_blob
     ::Sequel::SQL::Blob.new self
   end
+  alias to_blob to_sequel_blob
 end
 
 class Symbol
   include Sequel::SQL::QualifyingMethods
   include Sequel::SQL::IdentifierMethods
-  include Sequel::SQL::GenericExpressionMethods
+  include Sequel::SQL::AliasMethods
+  include Sequel::SQL::CastMethods
+  include Sequel::SQL::OrderMethods
+  include Sequel::SQL::BooleanMethods
+  include Sequel::SQL::NumericMethods
+  include Sequel::SQL::StringMethods
+  include Sequel::SQL::ComplexExpressionMethods
+  include Sequel::SQL::InequalityMethods if RUBY_VERSION < '1.9.0'
 
   # If no argument is given, returns a Sequel::SQL::ColumnAll object specifying all
   # columns for this table.
@@ -169,10 +181,13 @@ class Symbol
   end
 
   # Returns a Sequel::SQL::Function  with this as the function name,
-  # and the given arguments.
-  def [](*args)
+  # and the given arguments. This is aliased as Symbol#[] if ruby 1.9
+  # is not being used.  ruby 1.9 includes Symbol#[], and Sequel
+  # doesn't override methods defined by ruby itself.
+  def sql_function(*args)
     Sequel::SQL::Function.new(self, *args)
   end
+  alias_method(:[], :sql_function) if RUBY_VERSION < '1.9.0'
 
   # If the given argument is an Integer or an array containing an Integer, returns
   # a Sequel::SQL::Subscript with this column and the given arg.

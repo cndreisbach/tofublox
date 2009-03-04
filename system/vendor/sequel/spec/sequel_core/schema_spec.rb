@@ -38,6 +38,28 @@ context "DB#create_table" do
     end
     @db.sqls.should == ['CREATE TABLE cats (id integer, name text)']
   end
+  
+  specify "should transform types given as ruby classes to database-specific types" do
+    @db.create_table(:cats) do
+      String :a
+      Integer :b
+      Fixnum :c
+      Bignum :d
+      Float :e
+      BigDecimal :f
+      Date :g
+      DateTime :h
+      Time :i
+      Numeric :j
+      File :k
+      TrueClass :l
+      FalseClass :m
+      column :n, Fixnum
+      primary_key :o, :type=>String
+      foreign_key :p, :f, :type=>Date
+    end
+    @db.sqls.should == ['CREATE TABLE cats (o varchar(255) PRIMARY KEY AUTOINCREMENT, a varchar(255), b integer, c integer, d bigint, e double precision, f numeric, g date, h timestamp, i timestamp, j numeric, k blob, l boolean, m boolean, n integer, p date REFERENCES f)']
+  end
 
   specify "should accept primary key definition" do
     @db.create_table(:cats) do
@@ -305,6 +327,22 @@ context "DB#create_table" do
     @db.sqls.should == ["CREATE TABLE cats (id integer)", "CREATE INDEX cats_id_index ON cats (id)", "CREATE INDEX cats_name_index ON cats (name)"]
   end
   
+  specify "should accept functional indexes" do
+    @db.create_table(:cats) do
+      integer :id
+      index :lower.sql_function(:name)
+    end
+    @db.sqls.should == ["CREATE TABLE cats (id integer)", "CREATE INDEX cats_lower_name__index ON cats (lower(name))"]
+  end
+  
+  specify "should accept indexes with identifiers" do
+    @db.create_table(:cats) do
+      integer :id
+      index :lower__name.identifier
+    end
+    @db.sqls.should == ["CREATE TABLE cats (id integer)", "CREATE INDEX cats_lower__name_index ON cats (lower__name)"]
+  end
+  
   specify "should accept custom index names" do
     @db.create_table(:cats) do
       integer :id
@@ -332,7 +370,7 @@ context "DB#create_table" do
   specify "should accept unnamed constraint definitions with blocks" do
     @db.create_table(:cats) do
       integer :score
-      check {(:x > 0) & (:y < 1)}
+      check {(:x.sql_number > 0) & (:y.sql_number < 1)}
     end
     @db.sqls.should == ["CREATE TABLE cats (score integer, CHECK ((x > 0) AND (y < 1)))"]
   end
@@ -361,7 +399,7 @@ context "DB#create_table" do
 
   specify "should accept named constraint definitions with block" do
     @db.create_table(:cats) do
-      constraint(:blah_blah) {(:x > 0) & (:y < 1)}
+      constraint(:blah_blah) {(:x.sql_number > 0) & (:y.sql_number < 1)}
     end
     @db.sqls.should == ["CREATE TABLE cats (CONSTRAINT blah_blah CHECK ((x > 0) AND (y < 1)))"]
   end
@@ -510,7 +548,7 @@ context "DB#alter_table" do
 
   specify "should support add_constraint with block" do
     @db.alter_table(:cats) do
-      add_constraint(:blah_blah) {(:x > 0) & (:y < 1)}
+      add_constraint(:blah_blah) {(:x.sql_number > 0) & (:y.sql_number < 1)}
     end
     @db.sqls.should == ["ALTER TABLE cats ADD CONSTRAINT blah_blah CHECK ((x > 0) AND (y < 1))"]
   end
@@ -628,6 +666,17 @@ context "DB#alter_table" do
     end
     @db.sqls.should == ["ALTER TABLE cats ALTER COLUMN score TYPE real"]
   end
+
+  specify "should support set_column_type with options" do
+    @db.alter_table(:cats) do
+      set_column_type :score, :integer, :unsigned=>true
+      set_column_type :score, :varchar, :size=>30
+      set_column_type :score, :enum, :elements=>['a', 'b']
+    end
+    @db.sqls.should == ["ALTER TABLE cats ALTER COLUMN score TYPE integer UNSIGNED",
+      "ALTER TABLE cats ALTER COLUMN score TYPE varchar(30)",
+      "ALTER TABLE cats ALTER COLUMN score TYPE enum('a', 'b')"]
+  end
 end
 
 context "Schema Parser" do
@@ -639,6 +688,13 @@ context "Schema Parser" do
     Sequel.convert_tinyint_to_bool = true
   end
 
+  specify "should raise an error if there are no columns" do
+    @db.meta_def(:schema_parse_table) do |t, opts|
+      []
+    end
+    proc{@db.schema(:x)}.should raise_error(Sequel::Error)
+  end
+
   specify "should parse the schema correctly for a single table" do
     sqls = @sqls
     proc{@db.schema(:x)}.should raise_error(Sequel::Error)
@@ -647,11 +703,11 @@ context "Schema Parser" do
       [[:a, {:db_type=>t.to_s}]]
     end
     @db.schema(:x).should == [[:a, {:db_type=>"x"}]]
-    @sqls.should == [:x]
+    @sqls.should == ['x']
     @db.schema(:x).should == [[:a, {:db_type=>"x"}]]
-    @sqls.should == [:x]
+    @sqls.should == ['x']
     @db.schema(:x, :reload=>true).should == [[:a, {:db_type=>"x"}]]
-    @sqls.should == [:x, :x]
+    @sqls.should == ['x', 'x']
   end
 
   specify "should parse the schema correctly for all tables" do
@@ -662,18 +718,28 @@ context "Schema Parser" do
       sqls << t
       [[:x, {:db_type=>t.to_s}]]
     end
-    @db.schema.should == {:x=>[[:x, {:db_type=>"x"}]]}
-    @sqls.should == [:x]
-    @db.schema.should == {:x=>[[:x, {:db_type=>"x"}]]}
-    @sqls.should == [:x]
-    @db.schema(nil, :reload=>true).should == {:x=>[[:x, {:db_type=>"x"}]]}
-    @sqls.should == [:x, :x]
-    @db.meta_def(:schema_parse_tables) do |opts|
-      sqls << 1
-      {:x=>[[:a, {:db_type=>"1"}]]}
+    @db.schema.should == {'x'=>[[:x, {:db_type=>"x"}]]}
+    @sqls.should == ['x']
+    @db.schema.should == {'x'=>[[:x, {:db_type=>"x"}]]}
+    @sqls.should == ['x']
+    @db.schema(nil, :reload=>true).should == {'x'=>[[:x, {:db_type=>"x"}]]}
+    @sqls.should == ['x', 'x']
+  end
+
+  specify "should convert various types of table name arguments" do
+    @db.meta_def(:schema_parse_table) do |t, opts|
+      [[t, {:db_type=>t}]]
     end
-    @db.schema(nil, :reload=>true).should == {:x=>[[:a, {:db_type=>"1"}]]}
-    @sqls.should == [:x, :x, 1]
+    s1 = @db.schema(:x)
+    s1.should == [['x', {:db_type=>'x'}]]
+    @db.schema[:x].object_id.should == s1.object_id
+    @db.schema(:x.identifier).object_id.should == s1.object_id
+    @db.schema[:x.identifier].object_id.should == s1.object_id
+    s2 = @db.schema(:x__y)
+    s2.should == [['y', {:db_type=>'y'}]]
+    @db.schema[:x__y].object_id.should == s2.object_id
+    @db.schema(:y.qualify(:x)).object_id.should == s2.object_id
+    @db.schema[:y.qualify(:x)].object_id.should == s2.object_id
   end
 
   specify "should correctly parse all supported data types" do
@@ -683,6 +749,7 @@ context "Schema Parser" do
     @db.schema(:tinyint).first.last[:type].should == :boolean
     Sequel.convert_tinyint_to_bool = false
     @db.schema(:tinyint, :reload=>true).first.last[:type].should == :integer
+    @db.schema(:interval).first.last[:type].should == :interval
     @db.schema(:int).first.last[:type].should == :integer
     @db.schema(:integer).first.last[:type].should == :integer
     @db.schema(:bigint).first.last[:type].should == :integer

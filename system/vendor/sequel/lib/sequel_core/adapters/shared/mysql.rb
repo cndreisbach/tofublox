@@ -1,5 +1,16 @@
+require 'sequel_core/adapters/utils/unsupported'
+
 module Sequel
+  module Schema
+    module SQL
+      # Keep default column_references_sql for add_foreign_key support
+      alias default_column_references_sql column_references_sql
+    end
+  end
   module MySQL
+    # Set the default options used for CREATE TABLE
+    metaattr_accessor :default_charset, :default_collate, :default_engine
+
     # Methods shared by Database instances that connect to MySQL,
     # currently supported by the native and JDBC adapters.
     module DatabaseMethods
@@ -7,22 +18,29 @@ module Sequel
       NOT_NULL = Sequel::Schema::SQL::NOT_NULL
       NULL = Sequel::Schema::SQL::NULL
       PRIMARY_KEY = Sequel::Schema::SQL::PRIMARY_KEY
-      TYPES = Sequel::Schema::SQL::TYPES
+      TYPES = Sequel::Schema::SQL::TYPES.merge(DateTime=>'datetime', \
+        TrueClass=>'tinyint', FalseClass=>'tinyint')
       UNIQUE = Sequel::Schema::SQL::UNIQUE
       UNSIGNED = Sequel::Schema::SQL::UNSIGNED
       
       # Use MySQL specific syntax for rename column, set column type, and
       # drop index cases.
       def alter_table_sql(table, op)
-        quoted_table = quote_identifier(table)
-        quoted_name = quote_identifier(op[:name]) if op[:name]
         case op[:op]
+        when :add_column
+          if related = op.delete(:table)
+            sql = super(table, op)
+            op[:table] = related
+            [sql, "ALTER TABLE #{quote_schema_table(table)} ADD FOREIGN KEY (#{quote_identifier(op[:name])})#{default_column_references_sql(op)}"]
+          else
+            super(table, op)
+          end
         when :rename_column
-          "ALTER TABLE #{quoted_table} CHANGE COLUMN #{quoted_name} #{quote_identifier(op[:new_name])} #{type_literal(op)}"
+          "ALTER TABLE #{quote_schema_table(table)} CHANGE COLUMN #{quote_identifier(op[:name])} #{quote_identifier(op[:new_name])} #{type_literal(op)}"
         when :set_column_type
-          "ALTER TABLE #{quoted_table} CHANGE COLUMN #{quoted_name} #{quoted_name} #{type_literal(op)}"
+          "ALTER TABLE #{quote_schema_table(table)} CHANGE COLUMN #{quote_identifier(op[:name])} #{quote_identifier(op[:name])} #{type_literal(op)}"
         when :drop_index
-          "#{drop_index_sql(table, op)} ON #{quoted_table}"
+          "#{drop_index_sql(table, op)} ON #{quote_schema_table(table)}"
         else
           super(table, op)
         end
@@ -38,6 +56,16 @@ module Sequel
         "#{", FOREIGN KEY (#{quote_identifier(column[:name])})" unless column[:type] == :check}#{super(column)}"
       end
       
+      # Use MySQL specific syntax for engine type and character encoding
+      def create_table_sql_list(name, columns, indexes = nil, options = {})
+        options[:engine] = Sequel::MySQL.default_engine unless options.include?(:engine)
+        options[:charset] = Sequel::MySQL.default_charset unless options.include?(:charset)
+        options[:collate] = Sequel::MySQL.default_collate unless options.include?(:collate)
+        sql = ["CREATE TABLE #{quote_schema_table(name)} (#{column_list_sql(columns)})#{" ENGINE=#{options[:engine]}" if options[:engine]}#{" DEFAULT CHARSET=#{options[:charset]}" if options[:charset]}#{" DEFAULT COLLATE=#{options[:collate]}" if options[:collate]}"]
+        sql.concat(index_list_sql_list(name, indexes)) if indexes && !indexes.empty?
+        sql
+      end
+
       # Handle MySQL specific index SQL syntax
       def index_definition_sql(table_name, index)
         index_name = quote_identifier(index[:name] || default_index_name(table_name, index[:columns]))
@@ -50,18 +78,24 @@ module Sequel
           using = " USING #{index[:type]}" unless index[:type] == nil
           "UNIQUE " if index[:unique]
         end
-        "CREATE #{index_type}INDEX #{index_name} ON #{quote_identifier(table_name)} #{literal(index[:columns])}#{using}"
+        "CREATE #{index_type}INDEX #{index_name} ON #{quote_schema_table(table_name)} #{literal(index[:columns])}#{using}"
       end
       
       # Get version of MySQL server, used for determined capabilities.
       def server_version
-        m = /(\d+)\.(\d+)\.(\d+)/.match(get(:version[]))
+        m = /(\d+)\.(\d+)\.(\d+)/.match(get(SQL::Function.new(:version)))
         @server_version ||= (m[1].to_i * 10000) + (m[2].to_i * 100) + m[3].to_i
       end
       
       # Return an array of symbols specifying table names in the current database.
-      def tables(server=nil)
-        self['SHOW TABLES'].server(server).map{|r| r.values.first.to_sym}
+      #
+      # Options:
+      # * :server - Set the server to use
+      def tables(opts={})
+        ds = self['SHOW TABLES'].server(opts[:server])
+        ds.identifier_output_method = nil
+        ds2 = dataset
+        ds.map{|r| ds2.send(:output_identifier, r.values.first)}
       end
       
       # Changes the database in use by issuing a USE statement.  I would be
@@ -75,9 +109,22 @@ module Sequel
       
       private
       
+      # MySQL folds unquoted identifiers to lowercase, so it shouldn't need to upcase identifiers on input.
+      def identifier_input_method_default
+        nil
+      end
+      
+      # MySQL folds unquoted identifiers to lowercase, so it shouldn't need to upcase identifiers on output.
+      def identifier_output_method_default
+        nil
+      end
+
       # Use the MySQL specific DESCRIBE syntax to get a table description.
       def schema_parse_table(table_name, opts)
-        self["DESCRIBE ?", table_name].map do |row|
+        ds = self["DESCRIBE ?", SQL::Identifier.new(table_name)]
+        ds.identifier_output_method = nil
+        ds2 = dataset
+        ds.map do |row|
           row.delete(:Extra)
           row[:allow_null] = row.delete(:Null) == 'YES'
           row[:default] = row.delete(:Default)
@@ -85,17 +132,31 @@ module Sequel
           row[:default] = nil if row[:default].blank?
           row[:db_type] = row.delete(:Type)
           row[:type] = schema_column_type(row[:db_type])
-          [row.delete(:Field).to_sym, row]
+          [ds2.send(:output_identifier, row.delete(:Field)), row]
         end
+      end
+
+      # Override the standard type conversions with MySQL specific ones
+      def type_literal_base(column)
+        TYPES[column[:type]]
       end
     end
   
     # Dataset methods shared by datasets that use MySQL databases.
     module DatasetMethods
+      include Dataset::UnsupportedIntersectExcept
+
       BOOL_TRUE = '1'.freeze
       BOOL_FALSE = '0'.freeze
+      CAST_TYPES = {String=>:CHAR, Integer=>:SIGNED, Time=>:DATETIME, DateTime=>:DATETIME, Numeric=>:DECIMAL, BigDecimal=>:DECIMAL, File=>:BINARY}
+      TIMESTAMP_FORMAT = "'%Y-%m-%d %H:%M:%S'".freeze
       COMMA_SEPARATOR = ', '.freeze
       
+      # MySQL can't use the varchar type in a cast.
+      def cast_sql(expr, type)
+        "CAST(#{literal(expr)} AS #{CAST_TYPES[type] || db.send(:type_literal_base, :type=>type)})"
+      end
+
       # MySQL specific syntax for LIKE/REGEXP searches, as well as
       # string concatenation.
       def complex_expression_sql(op, args)
@@ -172,18 +233,6 @@ module Sequel
         end
       end
       
-      # Override the default boolean values.
-      def literal(v)
-        case v
-        when true
-          BOOL_TRUE
-        when false
-          BOOL_FALSE
-        else
-          super
-        end
-      end
-      
       # MySQL specific syntax for inserting multiple values at once.
       def multi_insert_sql(columns, values)
         values = values.map {|r| literal(Array(r))}.join(COMMA_SEPARATOR)
@@ -249,6 +298,36 @@ module Sequel
         end
 
         sql
+      end
+
+      private
+
+      # Use MySQL Timestamp format
+      def literal_datetime(v)
+        v.strftime(TIMESTAMP_FORMAT)
+      end
+
+      # Use 0 for false on MySQL
+      def literal_false
+        BOOL_FALSE
+      end
+
+      # Use MySQL Timestamp format
+      def literal_time(v)
+        v.strftime(TIMESTAMP_FORMAT)
+      end
+
+      # Use 1 for true on MySQL
+      def literal_true
+        BOOL_TRUE
+      end
+      
+      # MySQL doesn't support DISTINCT ON
+      def select_distinct_sql(sql, opts)
+        if opts[:distinct]
+          raise(Error, "DISTINCT ON not supported by MySQL") unless opts[:distinct].empty?
+          sql << " DISTINCT"
+        end
       end
     end
   end

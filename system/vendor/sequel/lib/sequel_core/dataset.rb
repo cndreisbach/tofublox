@@ -54,7 +54,7 @@ module Sequel
     left_outer_join limit naked or order order_by order_more paginate query reject
     reverse reverse_order right_outer_join select select_all select_more
     set_defaults set_graph_aliases set_model set_overrides sort sort_by
-    unfiltered union unordered where'.collect{|x| x.to_sym}
+    unfiltered union unordered where with_sql'.collect{|x| x.to_sym}
 
     NOTIMPL_MSG = "This method must be overridden in Sequel adapters".freeze
     STOCK_TRANSFORMS = {
@@ -71,18 +71,24 @@ module Sequel
 
     # The database that corresponds to this dataset
     attr_accessor :db
+    
+    # Set the method to call on identifiers going into the database for this dataset
+    attr_accessor :identifier_input_method
+    
+    # Set the method to call on identifiers coming the database for this dataset
+    attr_accessor :identifier_output_method
 
     # The hash of options for this dataset, keys are symbols.
     attr_accessor :opts
 
+    # Whether to quote identifiers for this dataset
+    attr_writer :quote_identifiers
+    
     # The row_proc for this database, should be a Proc that takes
     # a single hash argument and returns the object you want to
     # fetch_rows to return.
     attr_accessor :row_proc
 
-    # Whether to quote identifiers for this dataset
-    attr_writer :quote_identifiers
-    
     # Constructs a new instance of a dataset with an associated database and 
     # options. Datasets are usually constructed by invoking Database methods:
     #
@@ -97,6 +103,8 @@ module Sequel
     def initialize(db, opts = nil)
       @db = db
       @quote_identifiers = db.quote_identifiers? if db.respond_to?(:quote_identifiers?)
+      @identifier_input_method = db.identifier_input_method if db.respond_to?(:identifier_input_method)
+      @identifier_output_method = db.identifier_output_method if db.respond_to?(:identifier_output_method)
       @opts = opts || {}
       @row_proc = nil
       @transform = nil
@@ -217,7 +225,7 @@ module Sequel
     # Inserts values into the associated table.  The returned value is generally
     # the value of the primary key for the inserted row, but that is adapter dependent.
     def insert(*values)
-      execute_dui(insert_sql(*values))
+      execute_insert(insert_sql(*values))
     end
   
     # Returns a string representation of the dataset including the class name 
@@ -415,6 +423,15 @@ module Sequel
       end
     end
     
+    def upcase_identifiers=(v)
+      @identifier_input_method = v ? :upcase : nil
+    end
+    
+    # Whether this dataset upcases identifiers.
+    def upcase_identifiers?
+      @identifier_input_method == :upcase
+    end
+    
     # Updates values for the dataset.  The returned value is generally the
     # number of rows updated, but that is adapter dependent.
     def update(*args)
@@ -450,6 +467,11 @@ module Sequel
       end
     end
 
+    # Set the server to use to :default unless it is already set in the passed opts
+    def default_server_opts(opts)
+      {:server=>@opts[:server] || :default}.merge(opts)
+    end
+
     # Execute the given SQL on the database using execute.
     def execute(sql, opts={}, &block)
       @db.execute(sql, {:server=>@opts[:server] || :read_only}.merge(opts), &block)
@@ -457,7 +479,18 @@ module Sequel
     
     # Execute the given SQL on the database using execute_dui.
     def execute_dui(sql, opts={}, &block)
-      @db.execute_dui(sql, {:server=>@opts[:server] || :default}.merge(opts), &block)
+      @db.execute_dui(sql, default_server_opts(opts), &block)
+    end
+    
+    # Execute the given SQL on the database using execute_insert.
+    def execute_insert(sql, opts={}, &block)
+      @db.execute_insert(sql, default_server_opts(opts), &block)
+    end
+    
+    # Modify the identifier returned from the database based on the
+    # identifier_output_method.
+    def input_identifier(v)
+      (i = identifier_input_method) ? v.to_s.send(i) : v.to_s
     end
 
     # Modify the receiver with the results of sending the meth, args, and block
@@ -467,6 +500,12 @@ module Sequel
       copy = send(meth, *args, &block)
       @opts.merge!(copy.opts)
       self
+    end
+    
+    # Modify the identifier returned from the database based on the
+    # identifier_output_method.
+    def output_identifier(v)
+      (i = identifier_output_method) ? v.to_s.send(i).to_sym : v.to_sym
     end
   end
 end

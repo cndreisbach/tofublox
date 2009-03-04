@@ -34,6 +34,8 @@ end
 
 class MockDatabase < Sequel::Database
   @@quote_identifiers = false
+  self.identifier_input_method = nil
+  self.identifier_output_method = nil
   attr_reader :sqls
   
   def execute(sql, opts={})
@@ -70,6 +72,9 @@ class << Sequel::Model
     @columns = cols
     @db_schema = {}
     cols.each{|c| @db_schema[c] = {}}
+  end
+  def simple_table
+    nil
   end
 end
 

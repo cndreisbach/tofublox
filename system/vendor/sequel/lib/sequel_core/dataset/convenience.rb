@@ -1,7 +1,7 @@
 module Sequel
   class Dataset
     COMMA_SEPARATOR = ', '.freeze
-    COUNT_OF_ALL_AS_COUNT = :count['*'.lit].as(:count)
+    COUNT_OF_ALL_AS_COUNT = SQL::Function.new(:count, LiteralString.new('*'.freeze)).as(:count)
 
     # Returns the first record matching the conditions.
     def [](*conditions)
@@ -16,7 +16,7 @@ module Sequel
 
     # Returns the average value for the given column.
     def avg(column)
-      get(:avg[column])
+      get{|o| o.avg(column)}
     end
     
     # Returns true if no records exists in the dataset
@@ -40,11 +40,11 @@ module Sequel
     #   ds.first(:id=>2) => {:id=>2}
     #   ds.first("id = 3") => {:id=>3}
     #   ds.first("id = ?", 4) => {:id=>4}
-    #   ds.first{:id > 2} => {:id=>5}
-    #   ds.order(:id).first{:id > 2} => {:id=>3}
-    #   ds.first{:id > 2} => {:id=>5}
-    #   ds.first("id > ?", 4){:id < 6) => {:id=>5}
-    #   ds.order(:id).first(2){:id < 2} => [{:id=>1}]
+    #   ds.first{|o| o.id > 2} => {:id=>5}
+    #   ds.order(:id).first{|o| o.id > 2} => {:id=>3}
+    #   ds.first{|o| o.id > 2} => {:id=>5}
+    #   ds.first("id > ?", 4){|o| o.id < 6} => {:id=>5}
+    #   ds.order(:id).first(2){|o| o.id < 2} => [{:id=>1}]
     def first(*args, &block)
       ds = block ? filter(&block) : self
 
@@ -61,8 +61,9 @@ module Sequel
     end
 
     # Return the column value for the first matching record in the dataset.
-    def get(column)
-      select(column).single_value
+    def get(column=nil, &block)
+      raise(Error, 'must provide argument or block to Dataset#get, not both') if column && block
+      (column ? select(column) : select(&block)).single_value
     end
 
     # Returns a dataset grouped by the given column with count by group.
@@ -73,7 +74,7 @@ module Sequel
     # Returns the interval between minimum and maximum values for the given 
     # column.
     def interval(column)
-      get("(max(#{literal(column)}) - min(#{literal(column)}))".lit)
+      get{|o| o.max(column) - o.min(column)}
     end
 
     # Reverses the order and then runs first.  Note that this
@@ -97,12 +98,12 @@ module Sequel
 
     # Returns the maximum value for the given column.
     def max(column)
-      get(:max[column])
+      get{|o| o.max(column)}
     end
 
     # Returns the minimum value for the given column.
     def min(column)
-      get(:min[column])
+      get{|o| o.min(column)}
     end
 
     # Inserts multiple records into the associated table. This method can be
@@ -170,7 +171,7 @@ module Sequel
     # Returns a Range object made from the minimum and maximum values for the
     # given column.
     def range(column)
-      if r = select(:min[column].as(:v1), :max[column].as(:v2)).first
+      if r = select{|o| [o.min(column).as(:v1), o.max(column).as(:v2)]}.first
         (r[:v1]..r[:v2])
       end
     end
@@ -191,27 +192,18 @@ module Sequel
     
     # Returns the sum for the given column.
     def sum(column)
-      get(:sum[column])
+      get{|o| o.sum(column)}
     end
 
     # Returns true if the table exists.  Will raise an error
     # if the dataset has fixed SQL or selects from another dataset
     # or more than one table.
     def table_exists?
-      if @opts[:sql]
-        raise Sequel::Error, "this dataset has fixed SQL"
-      end
-      
-      if @opts[:from].size != 1
-        raise Sequel::Error, "this dataset selects from multiple sources"
-      end
-      
+      raise(Sequel::Error, "this dataset has fixed SQL") if @opts[:sql]
+      raise(Sequel::Error, "this dataset selects from multiple sources") if @opts[:from].size != 1
       t = @opts[:from].first
-      if t.is_a?(Dataset)
-        raise Sequel::Error, "this dataset selects from a sub query"
-      end
-      
-      @db.table_exists?(t.to_sym)
+      raise(Sequel::Error, "this dataset selects from a sub query") if t.is_a?(Dataset)
+      @db.table_exists?(t)
     end
 
     # Returns a string in CSV format containing the dataset records. By 

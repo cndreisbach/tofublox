@@ -1,100 +1,74 @@
 require 'mysql'
 require 'sequel_core/adapters/shared/mysql'
-
-# Add methods to get columns, yield hashes with symbol keys, and do
-# type conversion.
-class Mysql::Result
-  # Mapping of type numbers to conversion methods.
-  MYSQL_TYPES = {
-    0   => :to_d,     # MYSQL_TYPE_DECIMAL
-    1   => :to_i,     # MYSQL_TYPE_TINY
-    2   => :to_i,     # MYSQL_TYPE_SHORT
-    3   => :to_i,     # MYSQL_TYPE_LONG
-    4   => :to_f,     # MYSQL_TYPE_FLOAT
-    5   => :to_f,     # MYSQL_TYPE_DOUBLE
-    # 6   => ??,        # MYSQL_TYPE_NULL
-    7   => :to_sequel_time,  # MYSQL_TYPE_TIMESTAMP
-    8   => :to_i,     # MYSQL_TYPE_LONGLONG
-    9   => :to_i,     # MYSQL_TYPE_INT24
-    10  => :to_date,  # MYSQL_TYPE_DATE
-    11  => :to_time,  # MYSQL_TYPE_TIME
-    12  => :to_sequel_time,  # MYSQL_TYPE_DATETIME
-    13  => :to_i,     # MYSQL_TYPE_YEAR
-    14  => :to_date,  # MYSQL_TYPE_NEWDATE
-    # 15  => :to_s      # MYSQL_TYPE_VARCHAR
-    # 16  => :to_s,     # MYSQL_TYPE_BIT
-    246 => :to_d,     # MYSQL_TYPE_NEWDECIMAL
-    247 => :to_i,     # MYSQL_TYPE_ENUM
-    248 => :to_i,      # MYSQL_TYPE_SET
-    249 => :to_blob,     # MYSQL_TYPE_TINY_BLOB
-    250 => :to_blob,     # MYSQL_TYPE_MEDIUM_BLOB
-    251 => :to_blob,     # MYSQL_TYPE_LONG_BLOB
-    252 => :to_blob,     # MYSQL_TYPE_BLOB
-    # 253 => :to_s,     # MYSQL_TYPE_VAR_STRING
-    # 254 => :to_s,     # MYSQL_TYPE_STRING
-    # 255 => :to_s      # MYSQL_TYPE_GEOMETRY
-  }
-  
-  # Return an array of column name symbols for this result set.
-  def columns(with_table = nil)
-    unless @columns
-      @column_types = []
-      @columns = fetch_fields.map do |f|
-        @column_types << f.type
-        (with_table ? "#{f.table}.#{f.name}" : f.name).to_sym
-      end
-    end
-    @columns
-  end
-
-  # yield a hash with symbol keys and type converted values.
-  def sequel_each_hash(with_table = nil)
-    c = columns
-    while row = fetch_row
-      h = {}
-      c.each_with_index {|f, i| h[f] = convert_type(row[i], @column_types[i])}
-      yield h
-    end
-  end
-  
-  private
-  
-  # Convert the type of v using the method in MYSQL_TYPES[type].
-  def convert_type(v, type)
-    if v
-      if type == 1 && Sequel.convert_tinyint_to_bool
-        # We special case tinyint here to avoid adding
-        # a method to an ancestor of Fixnum
-        v.to_i == 0 ? false : true
-      else
-        (t = MYSQL_TYPES[type]) ? v.send(t) : v
-      end
-    else
-      nil
-    end
-  end
-  
-end
+require 'sequel_core/adapters/utils/stored_procedures'
 
 module Sequel
   # Module for holding all MySQL-related classes and modules for Sequel.
   module MySQL
+    # Mapping of type numbers to conversion methods.
+    MYSQL_TYPES = {
+      0   => :to_d,     # MYSQL_TYPE_DECIMAL
+      1   => :to_i,     # MYSQL_TYPE_TINY
+      2   => :to_i,     # MYSQL_TYPE_SHORT
+      3   => :to_i,     # MYSQL_TYPE_LONG
+      4   => :to_f,     # MYSQL_TYPE_FLOAT
+      5   => :to_f,     # MYSQL_TYPE_DOUBLE
+      # 6   => ??,        # MYSQL_TYPE_NULL
+      7   => :to_sequel_time,  # MYSQL_TYPE_TIMESTAMP
+      8   => :to_i,     # MYSQL_TYPE_LONGLONG
+      9   => :to_i,     # MYSQL_TYPE_INT24
+      10  => :to_date,  # MYSQL_TYPE_DATE
+      11  => :to_time,  # MYSQL_TYPE_TIME
+      12  => :to_sequel_time,  # MYSQL_TYPE_DATETIME
+      13  => :to_i,     # MYSQL_TYPE_YEAR
+      14  => :to_date,  # MYSQL_TYPE_NEWDATE
+      # 15  => :to_s      # MYSQL_TYPE_VARCHAR
+      # 16  => :to_s,     # MYSQL_TYPE_BIT
+      246 => :to_d,     # MYSQL_TYPE_NEWDECIMAL
+      247 => :to_i,     # MYSQL_TYPE_ENUM
+      248 => :to_i,      # MYSQL_TYPE_SET
+      249 => :to_sequel_blob,     # MYSQL_TYPE_TINY_BLOB
+      250 => :to_sequel_blob,     # MYSQL_TYPE_MEDIUM_BLOB
+      251 => :to_sequel_blob,     # MYSQL_TYPE_LONG_BLOB
+      252 => :to_sequel_blob,     # MYSQL_TYPE_BLOB
+      # 253 => :to_s,     # MYSQL_TYPE_VAR_STRING
+      # 254 => :to_s,     # MYSQL_TYPE_STRING
+      # 255 => :to_s      # MYSQL_TYPE_GEOMETRY
+    }
+  
     # Database class for MySQL databases used with Sequel.
     class Database < Sequel::Database
       include Sequel::MySQL::DatabaseMethods
       
       set_adapter_scheme :mysql
       
+      # Support stored procedures on MySQL
+      def call_sproc(name, opts={}, &block)
+        args = opts[:args] || [] 
+        execute("CALL #{name}#{args.empty? ? '()' : literal(args)}", opts.merge(:sproc=>false), &block)
+      end
+      
       # Connect to the database.  In addition to the usual database options,
       # the following options have effect:
       #
-      # * :encoding, :charset - Set all the related character sets for this
+      # * :auto_is_null - Set to true to use MySQL default behavior of having
+      #   a filter for an autoincrement column equals NULL to return the last
+      #   inserted row.
+      # * :charset - Same as :encoding (:encoding takes precendence)
+      # * :compress - Set to false to not compress results from the server
+      # * :encoding - Set all the related character sets for this
       #   connection (connection, client, database, server, and results).
       # * :socket - Use a unix socket file instead of connecting via TCP/IP.
+      # * :timeout - Set the timeout in seconds before the server will
+      #   disconnect this connection.
       def connect(server)
         opts = server_opts(server)
         conn = Mysql.init
         conn.options(Mysql::OPT_LOCAL_INFILE, "client")
+        if encoding = opts[:encoding] || opts[:charset]
+          # set charset _before_ the connect. using an option instead of "SET (NAMES|CHARACTER_SET_*)" works across reconnects
+          conn.options(Mysql::SET_CHARSET_NAME, encoding)
+        end
         conn.real_connect(
           opts[:host] || 'localhost',
           opts[:user],
@@ -104,16 +78,16 @@ module Sequel
           opts[:socket],
           Mysql::CLIENT_MULTI_RESULTS +
           Mysql::CLIENT_MULTI_STATEMENTS +
-          Mysql::CLIENT_COMPRESS
+          (opts[:compress] == false ? 0 : Mysql::CLIENT_COMPRESS)
         )
+
+        # increase timeout so mysql server doesn't disconnect us
+        conn.query("set @@wait_timeout = #{opts[:timeout] || 2592000}")
+
+        # By default, MySQL 'where id is null' selects the last inserted id
+        conn.query("set SQL_AUTO_IS_NULL=0") unless opts[:auto_is_null]
+
         conn.query_with_result = false
-        if encoding = opts[:encoding] || opts[:charset]
-          conn.query("set character_set_connection = '#{encoding}'")
-          conn.query("set character_set_client = '#{encoding}'")
-          conn.query("set character_set_database = '#{encoding}'")
-          conn.query("set character_set_server = '#{encoding}'")
-          conn.query("set character_set_results = '#{encoding}'")
-        end
         conn.meta_eval{attr_accessor :prepared_statements}
         conn.prepared_statements = {}
         conn.reconnect = true
@@ -125,14 +99,10 @@ module Sequel
         MySQL::Dataset.new(self, opts)
       end
       
-      # Closes all database connections.
-      def disconnect
-        @pool.disconnect {|c| c.close}
-      end
-      
       # Executes the given SQL using an available connection, yielding the
       # connection if the block is given.
       def execute(sql, opts={}, &block)
+        return call_sproc(sql, opts, &block) if opts[:sproc]
         return execute_prepared_statement(sql, opts, &block) if Symbol === sql
         begin
           synchronize(opts[:server]){|conn| _execute(conn, sql, opts, &block)}
@@ -178,11 +148,19 @@ module Sequel
         log_info(sql)
         conn.query(sql)
         if opts[:type] == :select
-          r = conn.use_result
-          begin
-            yield r
-          ensure
-            r.free
+          loop do
+            begin
+              r = conn.use_result
+            rescue Mysql::Error
+              nil
+            else
+              begin
+                yield r
+              ensure
+                r.free
+              end
+            end
+            break unless conn.respond_to?(:next_result) && conn.next_result
           end
         else
           yield conn if block_given?
@@ -198,6 +176,11 @@ module Sequel
       # the :database option.
       def database_name
         @opts[:database]
+      end
+      
+      # Closes given database connection.
+      def disconnect_connection(c)
+        c.close
       end
       
       # Executes a prepared statement on an available connection.  If the
@@ -231,10 +214,26 @@ module Sequel
     # Dataset class for MySQL datasets accessed via the native driver.
     class Dataset < Sequel::Dataset
       include Sequel::MySQL::DatasetMethods
+      include StoredProcedures
+      
+      # Methods to add to MySQL prepared statement calls without using a
+      # real database prepared statement and bound variables.
+      module CallableStatementMethods
+        # Extend given dataset with this module so subselects inside subselects in
+        # prepared statements work.
+        def subselect_sql(ds)
+          ps = ds.to_prepared_statement(:select)
+          ps.extend(CallableStatementMethods)
+          ps.prepared_args = prepared_args
+          ps.prepared_sql
+        end
+      end
       
       # Methods for MySQL prepared statements using the native driver.
       module PreparedStatementMethods
         include Sequel::Dataset::UnnumberedArgumentMapper
+        
+        private
         
         # Execute the prepared statement with the bind arguments instead of
         # the given SQL.
@@ -248,6 +247,34 @@ module Sequel
         end
       end
       
+      # Methods for MySQL stored procedures using the native driver.
+      module StoredProcedureMethods
+        include Sequel::Dataset::StoredProcedureMethods
+        
+        private
+        
+        # Execute the database stored procedure with the stored arguments.
+        def execute(sql, opts={}, &block)
+          super(@sproc_name, {:args=>@sproc_args, :sproc=>true}.merge(opts), &block)
+        end
+        
+        # Same as execute, explicit due to intricacies of alias and super.
+        def execute_dui(sql, opts={}, &block)
+          super(@sproc_name, {:args=>@sproc_args, :sproc=>true}.merge(opts), &block)
+        end
+      end
+      
+      # MySQL is different in that it supports prepared statements but not bound
+      # variables outside of prepared statements.  The default implementation
+      # breaks the use of subselects in prepared statements, so extend the
+      # temporary prepared statement that this creates with a module that
+      # fixes it.
+      def call(type, bind_arguments={}, values=nil)
+        ps = to_prepared_statement(type, values)
+        ps.extend(CallableStatementMethods)
+        ps.call(bind_arguments)
+      end
+      
       # Delete rows matching this dataset
       def delete(opts = nil)
         execute_dui(delete_sql(opts)){|c| c.affected_rows}
@@ -256,8 +283,13 @@ module Sequel
       # Yield all rows matching this dataset
       def fetch_rows(sql)
         execute(sql) do |r|
-          @columns = r.columns
-          r.sequel_each_hash {|row| yield row}
+          column_types = []
+          @columns = r.fetch_fields.map{|f| column_types << f.type; output_identifier(f.name)}
+          while row = r.fetch_row
+            h = {}
+            @columns.each_with_index {|f, i| h[f] = convert_type(row[i], column_types[i])}
+            yield h
+          end
         end
         self
       end
@@ -267,25 +299,16 @@ module Sequel
         execute_dui(insert_sql(*values)){|c| c.insert_id}
       end
       
-      # Handle correct quoting of strings using ::MySQL.quote.
-      def literal(v)
-        case v
-        when LiteralString
-          v
-        when String
-          "'#{::Mysql.quote(v)}'"
-        else
-          super
-        end
-      end
-      
       # Store the given type of prepared statement in the associated database
       # with the given name.
-      def prepare(type, name, values=nil)
+      def prepare(type, name=nil, values=nil)
         ps = to_prepared_statement(type, values)
         ps.extend(PreparedStatementMethods)
-        ps.prepared_statement_name = name
-        db.prepared_statements[name] = ps
+        if name
+          ps.prepared_statement_name = name
+          db.prepared_statements[name] = ps
+        end
+        ps
       end
       
       # Replace (update or insert) the matching row.
@@ -300,6 +323,21 @@ module Sequel
       
       private
       
+      # Convert the type of v using the method in MYSQL_TYPES[type].
+      def convert_type(v, type)
+        if v
+          if type == 1 && Sequel.convert_tinyint_to_bool
+            # We special case tinyint here to avoid adding
+            # a method to an ancestor of Fixnum
+            v.to_i == 0 ? false : true
+          else
+            (t = MYSQL_TYPES[type]) ? v.send(t) : v
+          end
+        else
+          nil
+        end
+      end
+      
       # Set the :type option to :select if it hasn't been set.
       def execute(sql, opts={}, &block)
         super(sql, {:type=>:select}.merge(opts), &block)
@@ -308,6 +346,16 @@ module Sequel
       # Set the :type option to :dui if it hasn't been set.
       def execute_dui(sql, opts={}, &block)
         super(sql, {:type=>:dui}.merge(opts), &block)
+      end
+      
+      # Handle correct quoting of strings using ::MySQL.quote.
+      def literal_string(v)
+        "'#{::Mysql.quote(v)}'"
+      end
+      
+      # Extend the dataset with the MySQL stored procedure methods.
+      def prepare_extend_sproc(ds)
+        ds.extend(StoredProcedureMethods)
       end
     end
   end

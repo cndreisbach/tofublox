@@ -4,7 +4,7 @@ unless defined?(POSTGRES_DB)
   POSTGRES_URL = 'postgres://postgres:postgres@localhost:5432/reality_spec' unless defined? POSTGRES_URL
   POSTGRES_DB = Sequel.connect(ENV['SEQUEL_PG_SPEC_DB']||POSTGRES_URL)
 end
-
+#POSTGRES_DB.instance_variable_set(:@server_version, 80100)
 POSTGRES_DB.create_table! :test do
   text :name
   integer :value, :index => true
@@ -125,13 +125,13 @@ context "A PostgreSQL dataset" do
     @d.select('COUNT(*)'.lit).sql.should == \
       'SELECT COUNT(*) FROM "test"'
 
-    @d.select(:max[:value]).sql.should == \
+    @d.select(:max.sql_function(:value)).sql.should == \
       'SELECT max("value") FROM "test"'
       
-    @d.select(:NOW[]).sql.should == \
+    @d.select(:NOW.sql_function).sql.should == \
     'SELECT NOW() FROM "test"'
 
-    @d.select(:max[:items__value]).sql.should == \
+    @d.select(:max.sql_function(:items__value)).sql.should == \
       'SELECT max("items"."value") FROM "test"'
 
     @d.order(:name.desc).sql.should == \
@@ -146,13 +146,13 @@ context "A PostgreSQL dataset" do
     @d.select('max(test."name") AS "max_name"'.lit).sql.should == \
       'SELECT max(test."name") AS "max_name" FROM "test"'
       
-    @d.select(:test[:abc, 'hello']).sql.should == \
+    @d.select(:test.sql_function(:abc, 'hello')).sql.should == \
       "SELECT test(\"abc\", 'hello') FROM \"test\""
 
-    @d.select(:test[:abc__def, 'hello']).sql.should == \
+    @d.select(:test.sql_function(:abc__def, 'hello')).sql.should == \
       "SELECT test(\"abc\".\"def\", 'hello') FROM \"test\""
 
-    @d.select(:test[:abc__def, 'hello'].as(:x2)).sql.should == \
+    @d.select(:test.sql_function(:abc__def, 'hello').as(:x2)).sql.should == \
       "SELECT test(\"abc\".\"def\", 'hello') AS \"x2\" FROM \"test\""
 
     @d.insert_sql(:value => 333).should =~ \
@@ -260,6 +260,10 @@ context "A PostgreSQL dataset" do
     POSTGRES_DB['SELECT ? AS a', "\\dingo"].get(:a) == "\\dingo"
   end
 
+  specify "should correctly escape strings with quotes" do
+    POSTGRES_DB['SELECT ? AS a', "\\'dingo"].get(:a) == "\\'dingo"
+  end
+
   specify "should properly escape binary data" do
     POSTGRES_DB['SELECT ? AS a', "\1\2\3".to_blob].get(:a) == "\1\2\3"
   end
@@ -343,7 +347,7 @@ context "A PostgreSQL database" do
       full_text_index [:title, :body]
     end
     POSTGRES_DB.create_table_sql_list(:posts, *g.create_info).should == [
-      "CREATE TABLE public.posts (title text, body text)",
+      "CREATE TABLE posts (title text, body text)",
       "CREATE INDEX posts_title_body_index ON posts USING gin (to_tsvector('simple', (COALESCE(title, '') || ' ' || COALESCE(body, ''))))"
     ]
   end
@@ -355,7 +359,7 @@ context "A PostgreSQL database" do
       full_text_index [:title, :body], :language => 'french'
     end
     POSTGRES_DB.create_table_sql_list(:posts, *g.create_info).should == [
-      "CREATE TABLE public.posts (title text, body text)",
+      "CREATE TABLE posts (title text, body text)",
       "CREATE INDEX posts_title_body_index ON posts USING gin (to_tsvector('french', (COALESCE(title, '') || ' ' || COALESCE(body, ''))))"
     ]
   end
@@ -377,7 +381,7 @@ context "A PostgreSQL database" do
       spatial_index [:geom]
     end
     POSTGRES_DB.create_table_sql_list(:posts, *g.create_info).should == [
-      "CREATE TABLE public.posts (geom geometry)",
+      "CREATE TABLE posts (geom geometry)",
       "CREATE INDEX posts_geom_index ON posts USING gist (geom)"
     ]
   end
@@ -388,7 +392,7 @@ context "A PostgreSQL database" do
       index :title, :type => 'hash'
     end
     POSTGRES_DB.create_table_sql_list(:posts, *g.create_info).should == [
-      "CREATE TABLE public.posts (title varchar(5))",
+      "CREATE TABLE posts (title varchar(5))",
       "CREATE INDEX posts_title_index ON posts USING hash (title)"
     ]
   end
@@ -399,7 +403,7 @@ context "A PostgreSQL database" do
       index :title, :type => 'hash', :unique => true
     end
     POSTGRES_DB.create_table_sql_list(:posts, *g.create_info).should == [
-      "CREATE TABLE public.posts (title varchar(5))",
+      "CREATE TABLE posts (title varchar(5))",
       "CREATE UNIQUE INDEX posts_title_index ON posts USING hash (title)"
     ]
   end
@@ -410,8 +414,19 @@ context "A PostgreSQL database" do
       index :title, :where => {:something => 5}
     end
     POSTGRES_DB.create_table_sql_list(:posts, *g.create_info).should == [
-      "CREATE TABLE public.posts (title varchar(5))",
+      "CREATE TABLE posts (title varchar(5))",
       "CREATE INDEX posts_title_index ON posts (title) WHERE (something = 5)"
+    ]
+  end
+  
+  specify "should support identifiers for table names in indicies" do
+    g = Sequel::Schema::Generator.new(POSTGRES_DB) do
+      varchar :title, :size => 5
+      index :title, :where => {:something => 5}
+    end
+    POSTGRES_DB.create_table_sql_list(Sequel::SQL::Identifier.new(:posts__test), *g.create_info).should == [
+      "CREATE TABLE posts__test (title varchar(5))",
+      "CREATE INDEX posts__test_title_index ON posts__test (title) WHERE (something = 5)"
     ]
   end
 end
@@ -457,9 +472,9 @@ context "Postgres::Dataset#insert" do
     @ds.insert(:value=>10)
   end
 
-  specify "should using call insert_returning_sql if server_version >= 80200" do
+  specify "should use INSERT RETURNING if server_version >= 80200" do
     @ds.meta_def(:server_version){80201}
-    @ds.should_receive(:single_value).once.with(:sql=>'INSERT INTO test5 (value) VALUES (10) RETURNING xid')
+    @ds.should_receive(:single_value).once.with(:server=>:default, :sql=>'INSERT INTO test5 (value) VALUES (10) RETURNING xid')
     @ds.insert(:value=>10)
   end
 
@@ -542,18 +557,18 @@ context "Postgres::Database schema qualified tables" do
   
   specify "should be able to get primary keys for tables in a given schema" do
     POSTGRES_DB.create_table(:schema_test__schema_test){primary_key :i}
-    POSTGRES_DB.synchronize{|c| POSTGRES_DB.send(:primary_key_for_table, c, :schema_test__schema_test).should == 'i'}
+    POSTGRES_DB.primary_key(:schema_test__schema_test).should == 'i'
   end
   
   specify "should be able to get serial sequences for tables in a given schema" do
     POSTGRES_DB.create_table(:schema_test__schema_test){primary_key :i}
-    POSTGRES_DB.synchronize{|c| POSTGRES_DB.send(:primary_key_sequence_for_table, c, :schema_test__schema_test).should == '"schema_test"."schema_test_i_seq"'}
+    POSTGRES_DB.primary_key_sequence(:schema_test__schema_test).should == '"schema_test"."schema_test_i_seq"'
   end
   
   specify "should be able to get custom sequences for tables in a given schema" do
     POSTGRES_DB << "CREATE SEQUENCE schema_test.kseq"
     POSTGRES_DB.create_table(:schema_test__schema_test){integer :j; primary_key :k, :type=>:integer, :default=>"nextval('schema_test.kseq'::regclass)".lit}
-    POSTGRES_DB.synchronize{|c| POSTGRES_DB.send(:primary_key_sequence_for_table, c, :schema_test__schema_test).should == '"schema_test"."kseq"'}
+    POSTGRES_DB.primary_key_sequence(:schema_test__schema_test).should == '"schema_test"."kseq"'
   end
   
   specify "#default_schema= should change the default schema used from public" do
@@ -561,8 +576,8 @@ context "Postgres::Database schema qualified tables" do
     POSTGRES_DB.default_schema = :schema_test
     POSTGRES_DB.table_exists?(:schema_test).should == true
     POSTGRES_DB.tables.should == [:schema_test]
-    POSTGRES_DB.synchronize{|c| POSTGRES_DB.send(:primary_key_for_table, c, :schema_test).should == 'i'}
-    POSTGRES_DB.synchronize{|c| POSTGRES_DB.send(:primary_key_sequence_for_table, c, :schema_test).should == '"schema_test"."schema_test_i_seq"'}
+    POSTGRES_DB.primary_key(:schema_test__schema_test).should == 'i'
+    POSTGRES_DB.primary_key_sequence(:schema_test__schema_test).should == '"schema_test"."schema_test_i_seq"'
   end
 end
 
@@ -599,5 +614,74 @@ if POSTGRES_DB.server_version >= 80300
       @ds << record
       @ds.full_text_search([:title, :body], "words").all.should include(record)
     end
+  end
+end
+
+context "Postgres::Database functions, languages, and triggers" do
+  setup do
+    @d = POSTGRES_DB
+  end
+  teardown do
+    @d.drop_function('tf', :if_exists=>true, :cascade=>true)
+    @d.drop_function('tf', :if_exists=>true, :cascade=>true, :args=>%w'integer integer')
+    @d.drop_language(:plpgsql, :if_exists=>true, :cascade=>true)
+    @d.drop_trigger(:test5, :identity, :if_exists=>true, :cascade=>true)
+  end
+  
+  specify "#create_function and #drop_function should create and drop functions" do
+    proc{@d['SELECT tf()'].all}.should raise_error(Sequel::DatabaseError)
+    args = ['tf', 'SELECT 1', {:returns=>:integer}]
+    @d.create_function_sql(*args).should =~ /\A\s*CREATE FUNCTION tf\(\)\s+RETURNS integer\s+LANGUAGE SQL\s+AS 'SELECT 1'\s*\z/
+    @d.create_function(*args)
+    rows = @d['SELECT tf()'].all.should == [{:tf=>1}]
+    @d.drop_function_sql('tf').should == 'DROP FUNCTION tf()'
+    @d.drop_function('tf')
+    proc{@d['SELECT tf()'].all}.should raise_error(Sequel::DatabaseError)
+  end
+  
+  specify "#create_function and #drop_function should support options" do
+    args = ['tf', 'SELECT $1 + $2', {:args=>[[:integer, :a], :integer], :replace=>true, :returns=>:integer, :language=>'SQL', :behavior=>:immutable, :strict=>true, :security_definer=>true, :cost=>2, :set=>{:search_path => 'public'}}]
+    @d.create_function_sql(*args).should =~ /\A\s*CREATE OR REPLACE FUNCTION tf\(a integer, integer\)\s+RETURNS integer\s+LANGUAGE SQL\s+IMMUTABLE\s+STRICT\s+SECURITY DEFINER\s+COST 2\s+SET search_path = public\s+AS 'SELECT \$1 \+ \$2'\s*\z/
+    @d.create_function(*args)
+    # Make sure replace works
+    @d.create_function(*args)
+    rows = @d['SELECT tf(1, 2)'].all.should == [{:tf=>3}]
+    args = ['tf', {:if_exists=>true, :cascade=>true, :args=>[[:integer, :a], :integer]}]
+    @d.drop_function_sql(*args).should == 'DROP FUNCTION IF EXISTS tf(a integer, integer) CASCADE'
+    @d.drop_function(*args)
+    # Make sure if exists works
+    @d.drop_function(*args)
+  end
+  
+  specify "#create_language and #drop_language should create and drop languages" do
+    @d.create_language_sql(:plpgsql).should == 'CREATE LANGUAGE plpgsql'
+    @d.create_language(:plpgsql)
+    proc{@d.create_language(:plpgsql)}.should raise_error(Sequel::DatabaseError)
+    @d.drop_language_sql(:plpgsql).should == 'DROP LANGUAGE plpgsql'
+    @d.drop_language(:plpgsql)
+    proc{@d.drop_language(:plpgsql)}.should raise_error(Sequel::DatabaseError)
+    @d.create_language_sql(:plpgsql, :trusted=>true, :handler=>:a, :validator=>:b).should == 'CREATE TRUSTED LANGUAGE plpgsql HANDLER a VALIDATOR b'
+    @d.drop_language_sql(:plpgsql, :if_exists=>true, :cascade=>true).should == 'DROP LANGUAGE IF EXISTS plpgsql CASCADE'
+    # Make sure if exists works
+    @d.drop_language(:plpgsql, :if_exists=>true, :cascade=>true)
+  end
+  
+  specify "#create_trigger and #drop_trigger should create and drop triggers" do
+    @d.create_language(:plpgsql)
+    @d.create_function(:tf, 'BEGIN IF NEW.value IS NULL THEN RAISE EXCEPTION \'Blah\'; END IF; RETURN NEW; END;', :language=>:plpgsql, :returns=>:trigger)
+    @d.create_trigger_sql(:test, :identity, :tf, :each_row=>true).should == 'CREATE TRIGGER identity BEFORE INSERT OR UPDATE OR DELETE ON public.test FOR EACH ROW EXECUTE PROCEDURE tf()'
+    @d.create_trigger(:test, :identity, :tf, :each_row=>true)
+    @d[:test].insert(:name=>'a', :value=>1)
+    @d[:test].filter(:name=>'a').all.should == [{:name=>'a', :value=>1}]
+    proc{@d[:test].filter(:name=>'a').update(:value=>nil)}.should raise_error(Sequel::DatabaseError)
+    @d[:test].filter(:name=>'a').all.should == [{:name=>'a', :value=>1}]
+    @d[:test].filter(:name=>'a').update(:value=>3)
+    @d[:test].filter(:name=>'a').all.should == [{:name=>'a', :value=>3}]
+    @d.drop_trigger_sql(:test, :identity).should == 'DROP TRIGGER identity ON public.test'
+    @d.drop_trigger(:test, :identity)
+    @d.create_trigger_sql(:test, :identity, :tf, :after=>true, :events=>:insert, :args=>[1, 'a']).should == 'CREATE TRIGGER identity AFTER INSERT ON public.test EXECUTE PROCEDURE tf(1, \'a\')'
+    @d.drop_trigger_sql(:test, :identity, :if_exists=>true, :cascade=>true).should == 'DROP TRIGGER IF EXISTS identity ON public.test CASCADE'
+    # Make sure if exists works
+    @d.drop_trigger(:test, :identity, :if_exists=>true, :cascade=>true)
   end
 end

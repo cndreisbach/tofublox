@@ -13,6 +13,10 @@ module Sequel
     # allowing users to specify column type as a method instead of using
     # the column method, which makes for a nicer DSL.
     class Generator
+      # Classes specifying generic types that Sequel will convert to database-specific types.
+      GENERIC_TYPES=[String, Integer, Fixnum, Bignum, Float, Numeric, BigDecimal,
+      Date, DateTime, Time, File, TrueClass, FalseClass]
+      
       # Set the database in which to create the table, and evaluate the block
       # in the context of this object.
       def initialize(db, &block)
@@ -21,6 +25,16 @@ module Sequel
         @indexes = []
         @primary_key = nil
         instance_eval(&block) if block
+      end
+      
+      # Add a method for each of the given types that creates a column
+      # with that type as a constant.  Types given should either already
+      # be constants/classes or a capitalized string/symbol with the same name
+      # as a constant/class.
+      def self.add_type_method(*types)
+        types.each do |type|
+          class_eval "def #{type}(name, opts={}); column(name, #{type}, opts); end"
+        end
       end
       
       # Add a unnamed constraint to the DDL, specified by the given block
@@ -87,10 +101,10 @@ module Sequel
         when NilClass
           opts
         else
-          raise(Error, "The seconds argument to foreign_key should be a Hash, Symbol, or nil")
+          raise(Error, "The second argument to foreign_key should be a Hash, Symbol, or nil")
         end
         return composite_foreign_key(name, opts) if name.is_a?(Array)
-        column(name, :integer, opts)
+        column(name, Integer, opts)
       end
       
       # Add a full text index on the given columns to the DDL.
@@ -127,9 +141,10 @@ module Sequel
       # optional middle argument denotes the type.
       # 
       # Examples:
-      #   primary_key(:id) primary_key(:name, :text)
+      #   primary_key(:id)
       #   primary_key(:zip_code, :null => false)
       #   primary_key([:street_number, :house_number])
+      #   primary_key(:id, :string, :auto_increment => false)
       def primary_key(name, *args)
         return composite_primary_key(name, *args) if name.is_a?(Array)
         @primary_key = @db.serial_primary_key_options.merge({:name => name})
@@ -172,6 +187,8 @@ module Sequel
         @columns << {:type => :check, :constraint_type => :foreign_key,
                      :name => nil, :columns => columns }.merge(opts)
       end
+      
+      add_type_method(*GENERIC_TYPES)
     end
   
     # Schema::AlterTableGenerator is an internal class that the user is not expected
@@ -221,7 +238,7 @@ module Sequel
       # use the composite key syntax even if it is only one column.
       def add_foreign_key(name, table, opts = {})
         return add_composite_foreign_key(name, table, opts) if name.is_a?(Array)
-        add_column(name, :integer, {:table=>table}.merge(opts))
+        add_column(name, Integer, {:table=>table}.merge(opts))
       end
       
       # Add a full text index on the given columns to the DDL for the table.
@@ -276,8 +293,8 @@ module Sequel
       end
 
       # Modify a column's type in the DDL for the table.
-      def set_column_type(name, type)
-        @operations << {:op => :set_column_type, :name => name, :type => type}
+      def set_column_type(name, type, opts={})
+        @operations << {:op => :set_column_type, :name => name, :type => type}.merge(opts)
       end
       
       # Modify a column's NOT NULL constraint.

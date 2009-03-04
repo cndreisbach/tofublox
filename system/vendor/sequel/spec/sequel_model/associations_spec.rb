@@ -15,6 +15,34 @@ describe Sequel::Model, "associate" do
     klass.association_reflection(:"par_parent1s").associated_class.should == ParParent
     klass.association_reflection(:"par_parent2s").associated_class.should == ParParent
   end
+
+  it "should add a model_object and association_reflection accessors to the dataset, and return it with the current model object" do
+    MODEL_DB.reset
+    klass = Class.new(Sequel::Model(:nodes)) do
+      columns :id, :a_id
+    end
+    mod = Module.new do
+      def blah
+       filter{|o| o.__send__(association_reflection[:key]) > model_object.id*2}
+      end
+    end
+
+    klass.associate :many_to_one, :a, :class=>klass
+    klass.associate :one_to_many, :bs, :key=>:b_id, :class=>klass, :extend=>mod
+    klass.associate :many_to_many, :cs, :class=>klass
+    
+    node = klass.load(:id=>1)
+    node.a_dataset.model_object.should == node
+    node.bs_dataset.model_object.should == node
+    node.cs_dataset.model_object.should == node
+
+    node.a_dataset.association_reflection.should == klass.association_reflection(:a)
+    node.bs_dataset.association_reflection.should == klass.association_reflection(:bs)
+    node.cs_dataset.association_reflection.should == klass.association_reflection(:cs)
+
+    node.bs_dataset.blah.sql.should == 'SELECT * FROM nodes WHERE ((nodes.b_id = 1) AND (b_id > 2))'
+  end
+
   it "should allow extending the dataset with :extend option" do
     MODEL_DB.reset
     klass = Class.new(Sequel::Model(:nodes)) do
@@ -41,6 +69,34 @@ describe Sequel::Model, "associate" do
     node.cs_dataset.blah.should == 1
     node.cs_dataset.blar.should == 2
   end
+
+  it "should clone an existing association with the :clone option" do
+    MODEL_DB.reset
+    klass = Class.new(Sequel::Model(:nodes))
+    
+    klass.many_to_one(:par_parent, :order=>:a){1}
+    klass.one_to_many(:par_parent1s, :class=>'ParParent', :limit=>12){4}
+    klass.many_to_many(:par_parent2s, :class=>:ParParent, :uniq=>true){2}
+
+    klass.many_to_one :par, :clone=>:par_parent, :select=>:b
+    klass.one_to_many :par1s, :clone=>:par_parent1s, :order=>:b, :limit=>10, :block=>nil
+    klass.many_to_many(:par2s, :clone=>:par_parent2s, :order=>:c){3}
+    
+    klass.association_reflection(:par).associated_class.should == ParParent
+    klass.association_reflection(:par1s).associated_class.should == ParParent
+    klass.association_reflection(:par2s).associated_class.should == ParParent
+    
+    klass.association_reflection(:par)[:order].should == :a
+    klass.association_reflection(:par).select.should == :b
+    klass.association_reflection(:par)[:block].call.should == 1
+    klass.association_reflection(:par1s)[:limit].should == 10
+    klass.association_reflection(:par1s)[:order].should == :b
+    klass.association_reflection(:par1s)[:block].should == nil
+    klass.association_reflection(:par2s)[:after_load].length.should == 1
+    klass.association_reflection(:par2s)[:order].should == :c
+    klass.association_reflection(:par2s)[:block].call.should == 3
+  end
+
 end
 
 describe Sequel::Model, "many_to_one" do
@@ -117,10 +173,21 @@ describe Sequel::Model, "many_to_one" do
     MODEL_DB.sqls.should == ["SELECT id, name FROM nodes WHERE (nodes.id = 567) LIMIT 1"]
   end
 
+  it "should use :conditions option if given" do
+    @c2.many_to_one :parent, :class => @c2, :key => :blah, :conditions=>{:a=>32}
+    @c2.new(:id => 1, :blah => 567).parent
+    MODEL_DB.sqls.should == ["SELECT * FROM nodes WHERE ((nodes.id = 567) AND (a = 32)) LIMIT 1"]
+
+    @c2.many_to_one :parent, :class => @c2, :key => :blah, :conditions=>:a
+    MODEL_DB.sqls.clear
+    @c2.new(:id => 1, :blah => 567).parent
+    MODEL_DB.sqls.should == ["SELECT * FROM nodes WHERE ((nodes.id = 567) AND a) LIMIT 1"]
+  end
+
   it "should support :order, :limit (only for offset), and :dataset options, as well as a block" do
     c2 = @c2
     @c2.many_to_one :child_20, :class => @c2, :key=>:id, :dataset=>proc{c2.filter(:parent_id=>pk)}, :limit=>[10,20], :order=>:name do |ds|
-      ds.filter(:x > 1)
+      ds.filter(:x.sql_number > 1)
     end
     @c2.load(:id => 100).child_20
     MODEL_DB.sqls.should == ["SELECT * FROM nodes WHERE ((parent_id = 100) AND (x > 1)) ORDER BY name LIMIT 1 OFFSET 20"]
@@ -592,6 +659,15 @@ describe Sequel::Model, "one_to_many" do
 
     n = @c2.new(:id => 1234)
     n.attributes_dataset.sql.should == "SELECT id, name FROM attributes WHERE (attributes.node_id = 1234)"
+  end
+  
+  it "should support a conditions option" do
+    @c2.one_to_many :attributes, :class => @c1, :conditions => {:a=>32}
+    n = @c2.new(:id => 1234)
+    n.attributes_dataset.sql.should == "SELECT * FROM attributes WHERE ((attributes.node_id = 1234) AND (a = 32))"
+    @c2.one_to_many :attributes, :class => @c1, :conditions => ~:a
+    n = @c2.new(:id => 1234)
+    n.attributes_dataset.sql.should == "SELECT * FROM attributes WHERE ((attributes.node_id = 1234) AND NOT a)"
   end
   
   it "should support an order option" do
@@ -1150,6 +1226,19 @@ describe Sequel::Model, "many_to_many" do
     a = n.attributes_dataset
     a.should be_a_kind_of(Sequel::Dataset)
     a.sql.should == 'SELECT attributes.* FROM attributes INNER JOIN attribute2node ON ((attribute2node.attributeid = attributes.id) AND (attribute2node.nodeid = 1234))'
+  end
+  
+  it "should support a conditions option" do
+    @c2.many_to_many :attributes, :class => @c1, :conditions => {:a=>32}
+    n = @c2.new(:id => 1234)
+    a = n.attributes_dataset
+    a.should be_a_kind_of(Sequel::Dataset)
+    a.sql.should == 'SELECT attributes.* FROM attributes INNER JOIN attributes_nodes ON ((attributes_nodes.attribute_id = attributes.id) AND (attributes_nodes.node_id = 1234)) WHERE (a = 32)'
+    @c2.many_to_many :attributes, :class => @c1, :conditions => ['a = ?', 32]
+    n = @c2.new(:id => 1234)
+    a = n.attributes_dataset
+    a.should be_a_kind_of(Sequel::Dataset)
+    a.sql.should == 'SELECT attributes.* FROM attributes INNER JOIN attributes_nodes ON ((attributes_nodes.attribute_id = attributes.id) AND (attributes_nodes.node_id = 1234)) WHERE (a = 32)'
   end
   
   it "should support an order option" do

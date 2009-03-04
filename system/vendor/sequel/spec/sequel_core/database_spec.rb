@@ -6,6 +6,8 @@ context "A new Database" do
   end
   teardown do
     Sequel.quote_identifiers = false
+    Sequel.identifier_input_method = nil
+    Sequel.identifier_output_method = nil
   end
   
   specify "should receive options" do
@@ -39,13 +41,91 @@ context "A new Database" do
     cc.should == 1234
   end
 
-  specify "should respect the :quote_identifiers and :single_threaded options" do
-    db = Sequel::Database.new(:quote_identifiers=>false, :single_threaded=>true)
-    db.quote_identifiers?.should == false
+  specify "should respect the :single_threaded option" do
+    db = Sequel::Database.new(:single_threaded=>true)
     db.pool.should be_a_kind_of(Sequel::SingleThreadedPool)
-    db = Sequel::Database.new(:quote_identifiers=>true, :single_threaded=>false)
-    db.quote_identifiers?.should == true
+    db = Sequel::Database.new(:single_threaded=>false)
     db.pool.should be_a_kind_of(Sequel::ConnectionPool)
+  end
+
+  specify "should respect the :quote_identifiers option" do
+    db = Sequel::Database.new(:quote_identifiers=>false)
+    db.quote_identifiers?.should == false
+    db = Sequel::Database.new(:quote_identifiers=>true)
+    db.quote_identifiers?.should == true
+  end
+
+  specify "should upcase on input and downcase on output by default" do
+    db = Sequel::Database.new
+    db.send(:identifier_input_method_default).should == :upcase
+    db.send(:identifier_output_method_default).should == :downcase
+  end
+
+  specify "should respect the :upcase_identifiers option" do
+    Sequel.upcase_identifiers = false
+    db = Sequel::Database.new(:upcase_identifiers=>false)
+    db.upcase_identifiers?.should == false
+    db.upcase_identifiers = true
+    db.upcase_identifiers?.should == true
+    db = Sequel::Database.new(:upcase_identifiers=>true)
+    db.upcase_identifiers?.should == true
+    db.upcase_identifiers = false
+    db.upcase_identifiers?.should == false
+    Sequel.upcase_identifiers = true
+    db = Sequel::Database.new(:upcase_identifiers=>false)
+    db.upcase_identifiers?.should == false
+    db.upcase_identifiers = true
+    db.upcase_identifiers?.should == true
+    db = Sequel::Database.new(:upcase_identifiers=>true)
+    db.upcase_identifiers?.should == true
+    db.upcase_identifiers = false
+    db.upcase_identifiers?.should == false
+  end
+  
+  specify "should respect the :identifier_input_method option" do
+    Sequel.identifier_input_method = nil
+    Sequel::Database.identifier_input_method.should == ""
+    db = Sequel::Database.new(:identifier_input_method=>nil)
+    db.identifier_input_method.should == nil
+    db.identifier_input_method = :downcase
+    db.identifier_input_method.should == :downcase
+    db = Sequel::Database.new(:identifier_input_method=>:upcase)
+    db.identifier_input_method.should == :upcase
+    db.identifier_input_method = nil
+    db.identifier_input_method.should == nil
+    Sequel.identifier_input_method = :downcase
+    Sequel::Database.identifier_input_method.should == :downcase
+    db = Sequel::Database.new(:identifier_input_method=>nil)
+    db.identifier_input_method.should == nil
+    db.identifier_input_method = :upcase
+    db.identifier_input_method.should == :upcase
+    db = Sequel::Database.new(:identifier_input_method=>:upcase)
+    db.identifier_input_method.should == :upcase
+    db.identifier_input_method = nil
+    db.identifier_input_method.should == nil
+  end
+  
+  specify "should respect the :identifier_output_method option" do
+    Sequel.identifier_output_method = nil
+    Sequel::Database.identifier_output_method.should == ""
+    db = Sequel::Database.new(:identifier_output_method=>nil)
+    db.identifier_output_method.should == nil
+    db.identifier_output_method = :downcase
+    db.identifier_output_method.should == :downcase
+    db = Sequel::Database.new(:identifier_output_method=>:upcase)
+    db.identifier_output_method.should == :upcase
+    db.identifier_output_method = nil
+    db.identifier_output_method.should == nil
+    Sequel.identifier_output_method = :downcase
+    Sequel::Database.identifier_output_method.should == :downcase
+    db = Sequel::Database.new(:identifier_output_method=>nil)
+    db.identifier_output_method.should == nil
+    db.identifier_output_method = :upcase
+    db.identifier_output_method.should == :upcase
+    db = Sequel::Database.new(:identifier_output_method=>:upcase)
+    db.identifier_output_method.should == :upcase
+    db.identifier_output_method = nil
+    db.identifier_output_method.should == nil
   end
 
   specify "should use the default Sequel.quote_identifiers value" do
@@ -59,23 +139,97 @@ context "A new Database" do
     Sequel::Database.new({}).quote_identifiers?.should == false
   end
 
+  specify "should use the default Sequel.upcase_identifiers value" do
+    Sequel.upcase_identifiers = true
+    Sequel::Database.new({}).upcase_identifiers?.should == true
+    Sequel.upcase_identifiers = false
+    Sequel::Database.new({}).upcase_identifiers?.should == false
+    Sequel::Database.upcase_identifiers = true
+    Sequel::Database.new({}).upcase_identifiers?.should == true
+    Sequel::Database.upcase_identifiers = false
+    Sequel::Database.new({}).upcase_identifiers?.should == false
+  end
+  
+  specify "should use the default Sequel.identifier_input_method value" do
+    Sequel.identifier_input_method = :downcase
+    Sequel::Database.new({}).identifier_input_method.should == :downcase
+    Sequel.identifier_input_method = :upcase
+    Sequel::Database.new({}).identifier_input_method.should == :upcase
+    Sequel::Database.identifier_input_method = :downcase
+    Sequel::Database.new({}).identifier_input_method.should == :downcase
+    Sequel::Database.identifier_input_method = :upcase
+    Sequel::Database.new({}).identifier_input_method.should == :upcase
+  end
+  
+  specify "should use the default Sequel.identifier_output_method value" do
+    Sequel.identifier_output_method = :downcase
+    Sequel::Database.new({}).identifier_output_method.should == :downcase
+    Sequel.identifier_output_method = :upcase
+    Sequel::Database.new({}).identifier_output_method.should == :upcase
+    Sequel::Database.identifier_output_method = :downcase
+    Sequel::Database.new({}).identifier_output_method.should == :downcase
+    Sequel::Database.identifier_output_method = :upcase
+    Sequel::Database.new({}).identifier_output_method.should == :upcase
+  end
+
+  specify "should respect the quote_indentifiers_default method if Sequel.quote_identifiers = nil" do
+    Sequel.quote_identifiers = nil
+    Sequel::Database.new({}).quote_identifiers?.should == true
+    x = Class.new(Sequel::Database){def quote_identifiers_default; false end}
+    x.new({}).quote_identifiers?.should == false
+    y = Class.new(Sequel::Database){def quote_identifiers_default; true end}
+    y.new({}).quote_identifiers?.should == true
+  end
+  
+  specify "should respect the identifier_input_method_default method" do
+    class Sequel::Database
+      @@identifier_input_method = nil
+    end
+    x = Class.new(Sequel::Database){def identifier_input_method_default; :downcase end}
+    x.new({}).identifier_input_method.should == :downcase
+    y = Class.new(Sequel::Database){def identifier_input_method_default; :camelize end}
+    y.new({}).identifier_input_method.should == :camelize
+  end
+  
+  specify "should respect the identifier_output_method_default method if Sequel.upcase_identifiers = nil" do
+    class Sequel::Database
+      @@identifier_output_method = nil
+    end
+    x = Class.new(Sequel::Database){def identifier_output_method_default; :upcase end}
+    x.new({}).identifier_output_method.should == :upcase
+    y = Class.new(Sequel::Database){def identifier_output_method_default; :underscore end}
+    y.new({}).identifier_output_method.should == :underscore
+  end
+
   specify "should just use a :uri option for jdbc with the full connection string" do
     Sequel::Database.should_receive(:adapter_class).once.with(:jdbc).and_return(Sequel::Database)
     db = Sequel.connect('jdbc:test://host/db_name')
     db.should be_a_kind_of(Sequel::Database)
     db.opts[:uri].should == 'jdbc:test://host/db_name'
   end
+
+  specify "should just use a :uri option for do with the full connection string" do
+    Sequel::Database.should_receive(:adapter_class).once.with(:do).and_return(Sequel::Database)
+    db = Sequel.connect('do:test://host/db_name')
+    db.should be_a_kind_of(Sequel::Database)
+    db.opts[:uri].should == 'do:test://host/db_name'
+  end
+end
+
+context "Database#disconnect" do
+  specify "should call pool.disconnect" do
+    d = Sequel::Database.new
+    p = d.pool
+    a = 1
+    p.meta_def(:disconnect){a += 1}
+    d.disconnect.should == 2
+    a.should == 2
+  end
 end
 
 context "Database#connect" do
   specify "should raise Sequel::Error::NotImplemented" do
     proc {Sequel::Database.new.connect}.should raise_error(NotImplementedError)
-  end
-end
-
-context "Database#disconnect" do
-  specify "should raise Sequel::Error::NotImplemented" do
-    proc {Sequel::Database.new.disconnect}.should raise_error(NotImplementedError)
   end
 end
 
@@ -90,6 +244,10 @@ context "Database#uri" do
   
   specify "should return the connection URI for the database" do
     @db.uri.should == 'mau://user:pass@localhost:9876/maumau'
+  end
+  
+  specify "should be aliased as #url" do
+    @db.url.should == 'mau://user:pass@localhost:9876/maumau'
   end
 end
 
@@ -128,7 +286,7 @@ context "Database#dataset" do
   end
   
   specify "should provide a filtered #from dataset if a block is given" do
-    d = @db.from(:mau) {:x > 100}
+    d = @db.from(:mau) {:x.sql_number > 100}
     d.should be_a_kind_of(Sequel::Dataset)
     d.sql.should == 'SELECT * FROM mau WHERE (x > 100)'
   end
@@ -437,14 +595,12 @@ end
 context "Database#table_exists?" do
   setup do
     @db = DummyDatabase.new
-    @db.stub!(:tables).and_return([:a, :b])
+    @db.instance_variable_set(:@schemas, {:a=>[]})
     @db2 = DummyDatabase.new
   end
   
-  specify "should use Database#tables if available" do
+  specify "should use schema information if available" do
     @db.table_exists?(:a).should be_true
-    @db.table_exists?(:b).should be_true
-    @db.table_exists?(:c).should be_false
   end
   
   specify "should otherwise try to select the first record from the table's dataset" do
@@ -819,7 +975,7 @@ context "Database#fetch" do
     ds.select_sql.should == 'select * from xyz'
     ds.sql.should == 'select * from xyz'
     
-    ds.filter!(:price < 100)
+    ds.filter!(:price.sql_number < 100)
     ds.select_sql.should == 'select * from xyz'
     ds.sql.should == 'select * from xyz'
   end
@@ -958,7 +1114,7 @@ context "Database#get" do
     @db.get(1).should == 1
     @db.sqls.last.should == 'SELECT 1'
     
-    @db.get(:version[])
+    @db.get(:version.sql_function)
     @db.sqls.last.should == 'SELECT version()'
   end
 end
@@ -1018,24 +1174,15 @@ end
 
 context "Database#typecast_value" do
   setup do
-    @db = Sequel::Database.new(1 => 2, :logger => 3)
+    @db = Sequel::Database.new
   end
-  specify "should raise InvalidValue when setting invalid integer" do
+  specify "should raise an Error::InvalidValue when given an invalid value" do
     proc{@db.typecast_value(:integer, "13a")}.should raise_error(Sequel::Error::InvalidValue)
-  end
-  specify "should raise InvalidValue when setting invalid float" do
     proc{@db.typecast_value(:float, "4.e2")}.should raise_error(Sequel::Error::InvalidValue)
-  end
-  specify "should raise InvalidValue when setting invalid decimal" do
     proc{@db.typecast_value(:decimal, :invalid_value)}.should raise_error(Sequel::Error::InvalidValue)
-  end
-  specify "should raise InvalidValue when setting invalid date" do
     proc{@db.typecast_value(:date, Object.new)}.should raise_error(Sequel::Error::InvalidValue)
-  end
-  specify "should raise InvalidValue when setting invalid time" do
+    proc{@db.typecast_value(:date, 'a')}.should raise_error(Sequel::Error::InvalidValue)
     proc{@db.typecast_value(:time, Date.new)}.should raise_error(Sequel::Error::InvalidValue)
-  end
-  specify "should raise InvalidValue when setting invalid datetime" do
     proc{@db.typecast_value(:datetime, 4)}.should raise_error(Sequel::Error::InvalidValue)
   end
 end

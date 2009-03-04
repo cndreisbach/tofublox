@@ -1,4 +1,5 @@
 require 'java'
+require 'sequel_core/adapters/utils/stored_procedures'
 
 module Sequel
   # Houses Sequel's JDBC support when running on JRuby.
@@ -60,6 +61,12 @@ module Sequel
         require 'sequel_core/adapters/shared/mssql'
         db.extend(Sequel::MSSQL::DatabaseMethods)
         com.microsoft.sqlserver.jdbc.SQLServerDriver
+      end,
+      :h2=>proc do |db|
+        require 'sequel_core/adapters/jdbc/h2'
+        db.extend(Sequel::JDBC::H2::DatabaseMethods)
+        JDBC.load_gem('h2')
+        org.h2.Driver
       end
     }
     
@@ -86,10 +93,42 @@ module Sequel
       # raise an error immediately if the connection doesn't have a
       # uri, since JDBC requires one.
       def initialize(opts)
-        super(opts)
+        @opts = opts
         raise(Error, "No connection string specified") unless uri
         if match = /\Ajdbc:([^:]+)/.match(uri) and prok = DATABASE_SETUP[match[1].to_sym]
           prok.call(self)
+        end
+        super(opts)
+      end
+      
+      # Execute the given stored procedure with the give name. If a block is
+      # given, the stored procedure should return rows.
+      def call_sproc(name, opts = {})
+        args = opts[:args] || []
+        sql = "{call #{name}(#{args.map{'?'}.join(',')})}"
+        synchronize(opts[:server]) do |conn|
+          cps = conn.prepareCall(sql)
+
+          i = 0
+          args.each{|arg| set_ps_arg(cps, arg, i+=1)}
+
+          begin
+            if block_given?
+              yield cps.executeQuery
+            else
+              case opts[:type]
+              when :insert
+                cps.executeUpdate
+                last_insert_id(conn, opts)
+              else
+                cps.executeUpdate
+              end
+            end
+          rescue NativeException, JavaSQL::SQLException => e
+            raise_error(e)
+          ensure
+            cps.close
+          end
         end
       end
       
@@ -103,14 +142,10 @@ module Sequel
         JDBC::Dataset.new(self, opts)
       end
       
-      # Close all adapter connections
-      def disconnect
-        @pool.disconnect {|c| c.close}
-      end
-      
       # Execute the given SQL.  If a block is given, if should be a SELECT
       # statement or something else that returns rows.
       def execute(sql, opts={}, &block)
+        return call_sproc(sql, opts, &block) if opts[:sproc]
         return execute_prepared_statement(sql, opts, &block) if sql.is_one_of?(Symbol, Dataset)
         log_info(sql)
         synchronize(opts[:server]) do |conn|
@@ -150,6 +185,14 @@ module Sequel
         execute(sql, {:type=>:insert}.merge(opts))
       end
       
+      # All tables in this database
+      def tables
+        ts = []
+        ds = dataset
+        metadata(:getTables, nil, nil, nil, ['TABLE'].to_java(:string)){|h| ts << ds.send(:output_identifier, h[:table_name])}
+        ts
+      end
+      
       # Default transaction method that should work on most JDBC
       # databases.  Does not use the JDBC transaction methods, uses
       # SQL BEGIN/ROLLBACK/COMMIT statements instead.
@@ -186,9 +229,18 @@ module Sequel
         ur = opts[:uri] || opts[:url] || opts[:database]
         ur =~ /^\Ajdbc:/ ? ur : "jdbc:#{ur}"
       end
-      alias url uri
       
       private
+      
+      # The JDBC adapter should not need the pool to convert exceptions.
+      def connection_pool_default_options
+        super.merge(:pool_convert_exceptions=>false)
+      end
+      
+      # Close given adapter connections
+      def disconnect_connection(c)
+        c.close
+      end
       
       # Execute the prepared statement.  If the provided name is a
       # dataset, use that as the prepared statement, otherwise use
@@ -250,6 +302,13 @@ module Sequel
         nil
       end
       
+      # Yield the metadata for this database
+      def metadata(*args, &block)
+        ds = dataset
+        ds.identifier_output_method = :downcase
+        synchronize{|c| ds.send(:process_result_set, c.getMetaData.send(*args), &block)}
+      end
+      
       # Java being java, you need to specify the type of each argument
       # for the prepared statement, and bind it individually.  This
       # guesses which JDBC method to use, and hopefully JRuby will convert
@@ -280,13 +339,26 @@ module Sequel
         conn
       end
       
-      # The JDBC adapter should not need the pool to convert exceptions.
-      def connection_pool_default_options
-        super.merge(:pool_convert_exceptions=>false)
+      # All tables in this database
+      def schema_parse_table(table, opts={})
+        ds = dataset
+        schema, table = schema_and_table(table)
+        schema = ds.send(:input_identifier, schema) if schema
+        table = ds.send(:input_identifier, table)
+        pks, ts = [], []
+        metadata(:getPrimaryKeys, nil, schema, table) do |h|
+          pks << h[:column_name]
+        end
+        metadata(:getColumns, nil, schema, table, nil) do |h|
+          ts << [ds.send(:output_identifier, h[:column_name]), {:type=>schema_column_type(h[:type_name]), :db_type=>h[:type_name], :default=>(h[:column_def] == '' ? nil : h[:column_def]), :allow_null=>(h[:nullable] != 0), :primary_key=>pks.include?(h[:column_name])}]
+        end
+        ts
       end
     end
     
     class Dataset < Sequel::Dataset
+      include StoredProcedures
+      
       # Use JDBC PreparedStatements instead of emulated ones.  Statements
       # created using #prepare are cached at the connection level to allow
       # reuse.  This also supports bind variables by using unnamed
@@ -313,46 +385,38 @@ module Sequel
         end
       end
       
-      # Create an unnamed prepared statement and call it.  Allows the
-      # use of bind variables.
-      def call(type, hash, values=nil, &block)
-        prepare(type, nil, values).call(hash, &block)
+      # Use JDBC CallableStatements to execute stored procedures.  Only supported
+      # if the underlying database has stored procedure support.
+      module StoredProcedureMethods
+        include Sequel::Dataset::StoredProcedureMethods
+        
+        private
+        
+        # Execute the database stored procedure with the stored arguments.
+        def execute(sql, opts={}, &block)
+          super(@sproc_name, {:args=>@sproc_args, :sproc=>true, :type=>sql_query_type}.merge(opts), &block)
+        end
+        
+        # Same as execute, explicit due to intricacies of alias and super.
+        def execute_dui(sql, opts={}, &block)
+          super(@sproc_name, {:args=>@sproc_args, :sproc=>true, :type=>sql_query_type}.merge(opts), &block)
+        end
+        
+        # Same as execute, explicit due to intricacies of alias and super.
+        def execute_insert(sql, opts={}, &block)
+          super(@sproc_name, {:args=>@sproc_args, :sproc=>true, :type=>sql_query_type}.merge(opts), &block)
+        end
       end
       
       # Correctly return rows from the database and return them as hashes.
       def fetch_rows(sql, &block)
-        execute(sql) do |result|
-          # get column names
-          meta = result.getMetaData
-          column_count = meta.getColumnCount
-          @columns = []
-          column_count.times {|i| @columns << meta.getColumnName(i+1).to_sym}
-
-          # get rows
-          while result.next
-            row = {}
-            @columns.each_with_index {|v, i| row[v] = result.getObject(i+1)}
-            yield row
-          end
-        end
+        execute(sql){|result| process_result_set(result, &block)}
         self
-      end
-      
-      # Use the ISO values for dates and times.
-      def literal(v)
-        case v
-        when Time
-          literal(v.iso8601)
-        when Date, DateTime, Java::JavaSql::Timestamp, Java::JavaSql::Date
-          literal(v.to_s)
-        else
-          super
-        end
       end
       
       # Create a named prepared statement that is stored in the
       # database (and connection) for reuse.
-      def prepare(type, name, values=nil)
+      def prepare(type, name=nil, values=nil)
         ps = to_prepared_statement(type, values)
         ps.extend(PreparedStatementMethods)
         if name
@@ -360,6 +424,48 @@ module Sequel
           db.prepared_statements[name] = ps
         end
         ps
+      end
+      
+      private
+      
+      # Convert the type.  Used for converting Java types to ruby types.
+      def convert_type(v)
+        case v
+        when Java::JavaSQL::Timestamp, Java::JavaSQL::Time
+          v.to_string.to_sequel_time
+        when Java::JavaSQL::Date
+          v.to_string.to_date
+        when Java::JavaIo::BufferedReader
+          lines = []
+          while(line = v.read_line) do lines << line end
+          lines.join("\n")
+        when Java::JavaMath::BigDecimal
+          BigDecimal.new(v.to_string)
+        else
+          v
+        end
+      end
+      
+      # Extend the dataset with the JDBC stored procedure methods.
+      def prepare_extend_sproc(ds)
+        ds.extend(StoredProcedureMethods)
+      end
+      
+      # Split out from fetch rows to allow processing of JDBC result sets
+      # that don't come from issuing an SQL string.
+      def process_result_set(result)
+        # get column names
+        meta = result.getMetaData
+        column_count = meta.getColumnCount
+        @columns = []
+        column_count.times{|i| @columns << output_identifier(meta.getColumnName(i+1))}
+
+        # get rows
+        while result.next
+          row = {}
+          @columns.each_with_index{|v, i| row[v] = convert_type(result.getObject(i+1))}
+          yield row
+        end
       end
     end
   end
