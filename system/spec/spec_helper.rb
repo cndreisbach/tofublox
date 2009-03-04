@@ -7,7 +7,7 @@ require 'bacon'
 
 Tofu.molds['TestMold'] = Mold.new('TestMold',
   [ ['Title', 'string'], ['Teaser', 'text'], ['Body', 'simple_text'],
-    ['TextField', 'text'], ['SimpleTextField', 'simple_text']
+    ['StringField', 'string'], ['TextField', 'text']
   ], '#{f :Teaser}', '#{f :Body}')
 
 module SpecFactory

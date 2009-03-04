@@ -1,0 +1,22 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: Text should work as SimpleText
+desc: A differentiation between Text and SimpleText is overly complex. Scratch Text as is, and rename SimpleText to Text.
+type: :task
+component: Tofublox
+release: 
+reporter: Clinton R. Nixon <crnixon@gmail.com>
+status: :closed
+disposition: :fixed
+creation_time: 2009-03-04 03:16:57.858302 Z
+references: []
+
+id: 88462aefb5f624aae2f7714af3502a8751674654
+log_events: 
+- - 2009-03-04 03:16:59.530230 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - created
+  - ""
+- - 2009-03-04 11:40:26.507507 Z
+  - Clinton R. Nixon <crnixon@gmail.com>
+  - closed with disposition fixed
+  - ""

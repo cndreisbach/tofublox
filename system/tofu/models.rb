@@ -43,7 +43,7 @@ class Mold
     @fields.each do |field|
       name, type = *field
       klass = begin
-                klass = "Tofu::Fields::#{type.camelize}".constantize
+                "Tofu::Fields::#{type.camelize}".constantize
               rescue NameError
                 Tofu::Fields::String
               end

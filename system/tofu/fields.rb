@@ -10,9 +10,7 @@ module Tofu
       end
     end
     
-    class Text < String; end
-
-    class SimpleText < Text
+    class Text < String
       def to_s
         start_tag = "<p>"
         text = @text.to_s.dup
