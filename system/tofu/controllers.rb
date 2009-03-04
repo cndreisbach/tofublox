@@ -16,7 +16,8 @@ end
 
 class IndexController < TofuController
   map '/index'
-
+  helper :formatting
+  
   def get
     @blocks = Block.order(:created_at.desc)
   end
@@ -25,6 +26,7 @@ end
 
 class ViewController < TofuController
   map '/view'
+  helper :formatting
 
   def get(permalink)
     load_block(permalink)

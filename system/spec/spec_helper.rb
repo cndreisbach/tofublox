@@ -4,10 +4,15 @@ require File.dirname(__FILE__) + '/../tofu'
 require "mocha/standalone"  
 require "mocha/object"  
 
+Tofu.molds['TestMold'] = Mold.new('TestMold',
+  [ ['Title', 'string'], ['Teaser', 'text'], ['Body', 'simple_text'],
+    ['TextField', 'text'], ['SimpleTextField', 'simple_text']
+  ], '#{f :Teaser}', '#{f :Body}')
+
 module SpecFactory
   def new_block(options = { })
     default_options = {
-      :mold => 'Post',
+      :mold => 'TestMold',
       :author => 'Powerfist',
       :content => { 'Title' => 'test', 'Body' => 'test' },
     }
@@ -16,7 +21,7 @@ module SpecFactory
 
   def create_block(*opts)
     new_block(*opts).save
-  end
+  end  
 end
 
 class Bacon::Context

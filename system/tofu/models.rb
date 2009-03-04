@@ -1,19 +1,21 @@
 class Mold
   include ActiveFiles::Record
 
-  attr_reader :fields, :summary, :body
+  attr_reader :fields, :field_types, :summary, :body
 
   def initialize(fields, summary, body)
     @fields = fields
     @summary = summary
     @body = body
+    
+    load_field_types
   end
-  
+
   alias :name :file_id
   alias :to_s :file_id
 
   add_file_id_to_initialize
-  
+
   def to_activefile
     raise RuntimeError, "Not implemented"
   end
@@ -25,15 +27,30 @@ class Mold
     fields = data['Fields'].map { |field| field.to_a.first }
     summary = documents.shift || String.new
     body = documents.shift || summary
-        
+
     Mold.new(file_id, fields, summary, body)
   end
 
   def self.file_store
     File.join(Tofu.dir, 'molds')
   end
+  
+  private
+  
+  def load_field_types
+    @field_types = {}
+    
+    @fields.each do |field|
+      name, type = *field
+      klass = begin
+                klass = "Tofu::Fields::#{type.camelize}".constantize
+              rescue NameError
+                Tofu::Fields::String
+              end
+      @field_types[name] = klass
+    end
+  end
 end
-
 
 class Block < Sequel::Model
   set_schema do
@@ -59,14 +76,8 @@ class Block < Sequel::Model
 
   serialize :content
 
-  after_initialize(:setup_content) do
-    self.content = Hash.new unless self.content.is_a? Hash
-  end
-
-  before_save(:set_permalink) do
-    set_permalink if self.permalink.nil? or self.permalink.empty?
-  end
-
+  after_initialize :setup_content
+  before_save :set_permalink
   before_save(:set_timestamps) do
     now = Time.now
     self.created_at ||= now
@@ -86,7 +97,13 @@ class Block < Sequel::Model
   end
 
   def field(key)
-    @values[:content][key.to_s]
+    key = key.to_s
+    field_klass = mold.field_types[key]
+    begin
+      field_klass.new(@values[:content][key]).to_s
+    rescue NameError
+      @values[:content][key]
+    end
   end
 
   def title
@@ -113,25 +130,31 @@ class Block < Sequel::Model
 
   private
 
+  def setup_content
+    self.content = Hash.new unless self.content.is_a? Hash
+  end
+
   def set_permalink
-    if self.title
-      self.permalink = title.slugify[0..50]
-    else
-      self.permalink = Time.now.strftime("%Y%m%d%H%M")
-    end
-
-    make_unique = lambda do |permalink|
-      block = Block[:permalink => permalink]
-      
-      if block.nil? or block.id == self.id
-        permalink
+    if self.permalink.nil? || self.permalink.empty?
+      if self.title
+        self.permalink = title.slugify[0..50]
       else
-        permalink.gsub(/\-\d\d+$/, '')
-        permalink += "-#{Time.now.strftime("%S")}"
-        make_unique.call(permalink)
+        self.permalink = Time.now.strftime("%Y%m%d%H%M")
       end
-    end
 
-    self.permalink = make_unique.call(permalink)    
+      make_unique = lambda do |permalink|
+        block = Block[:permalink => permalink]
+
+        if block.nil? or block.id == self.id
+          permalink
+        else
+          permalink.gsub(/\-\d\d+$/, '')
+          permalink += "-#{Time.now.strftime("%S")}"
+          make_unique.call(permalink)
+        end
+      end
+
+      self.permalink = make_unique.call(permalink)    
+    end
   end
 end

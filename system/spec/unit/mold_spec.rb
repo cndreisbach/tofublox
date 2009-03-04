@@ -1,7 +1,6 @@
 require File.dirname(__FILE__) + '/../spec_helper'
 
 describe 'a Mold' do
-
   before do
     @fields = { 'URL' => 'string', 'Description' => 'text' }
     @summary = @body = '#{f :URL} // #{f :Description}'
@@ -23,9 +22,7 @@ describe 'a Mold' do
       @mold.send(varname).should == instance_variable_get("@#{varname}")
     end
   end
-
 end
-
 
 describe 'Mold class' do
   it "should define its file store in the user dir" do

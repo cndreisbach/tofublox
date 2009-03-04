@@ -8,10 +8,16 @@ Fields:
   <h2 class="block-title">
     <a href="/view/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
   </h2>
+  <div class="block-info">
+    <span class="when">Posted on #{created_at.strftime("%Y %b %d")}</span>
+    <span class="attribution">by #{author}</span>
+  </div>
   <div class="block-content">
     #{f('Teaser')}
 
-    <p><a href="/view/#{permalink}">Read the rest of the article...</p>
+    <?r unless f('Body').blank? ?>
+      <p><a href="/view/#{permalink}">Read the rest of the article...</p>
+    <?r end ?>
   </div>
 </div>
 ---
@@ -19,6 +25,10 @@ Fields:
   <h2 class="block-title">
     <a href="/view/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
   </h2>
+  <div class="block-info">
+    <span class="when">Posted on #{created_at.strftime("%Y %m %d")}</span>
+    <span class="attribution">by #{author}</span>
+  </div>
   <div class="block-content">
     <div style='font-style: italic;'>
       #{f 'Teaser'}

@@ -64,6 +64,7 @@ describe 'a Block' do
     mold = mock()
     mold.stubs(:body).returns('Hello #{f :name}')
     mold.stubs(:filename).returns('/etc/passwd')
+    mold.stubs(:field_types).returns({ 'name' => Tofu::Fields::String })
     @block.stubs(:mold).returns(mold)
     
     @block.content['name'] = 'world'
