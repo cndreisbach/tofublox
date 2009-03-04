@@ -72,7 +72,7 @@ form label {
 
 input, textarea {
   width: 300px;
-  margin-bottom: 5px;
+  margin-bottom: 10px;
   background-color: #E8CAA4;
   font-size: 110%;
 }
@@ -86,6 +86,5 @@ textarea {
 form input[type=submit] {
   margin-left: 120px;
   margin-top: 5px;
-  width: 90px;
 }
 
