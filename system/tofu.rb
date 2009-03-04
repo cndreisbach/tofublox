@@ -18,7 +18,7 @@ module Tofu
                        :admin_password).new
   @molds = { }
 
-  class << self
+  class << self    
     attr_reader :molds, :config, :db
 
     def dir(subdir = '')
@@ -42,7 +42,7 @@ module Tofu
         @db = Sequel.sqlite((env == 'test') ? ':memory:' : @config.database)
       end
 
-      Ramaze.acquire dir('system/tofu/*')
+      Ramaze.acquire dir('system/tofu/**/*')
       load_molds
       Block.create_table unless Block.table_exists?
     end

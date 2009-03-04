@@ -3,7 +3,7 @@ ENV['RACK_ENV'] = 'test'
 require File.dirname(__FILE__) + '/../tofu'
 require "mocha/standalone"  
 require "mocha/object"  
-require 'bacon'
+require 'bacon' unless defined?(Bacon)
 
 Tofu.molds['TestMold'] = Mold.new('TestMold',
   [ ['Title', 'string'], ['Teaser', 'text'], ['Body', 'simple_text'],
