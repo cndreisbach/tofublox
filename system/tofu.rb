@@ -42,7 +42,7 @@ module Tofu
         @db = Sequel.sqlite((env == 'test') ? ':memory:' : @config.database)
       end
 
-      acquire dir('system/tofu/*')
+      Ramaze.acquire dir('system/tofu/*')
       load_molds
       Block.create_table unless Block.table_exists?
     end
