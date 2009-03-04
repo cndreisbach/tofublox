@@ -13,6 +13,7 @@ If you want to hack on TofuBlox, you'll want the following gems:
 
 * mocha
 * ditz
+* flog
 * reek
 * roodi
 
