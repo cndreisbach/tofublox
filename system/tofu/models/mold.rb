@@ -1,14 +1,14 @@
 class Mold
   include ActiveFiles::Record
 
-  attr_reader :fields, :field_types, :summary, :body
+  attr_reader :fields, :formatters, :summary, :body
 
   def initialize(fields, summary, body)
     @fields = fields
     @summary = summary
     @body = body
 
-    load_field_types
+    load_formatters
   end
 
   alias :name :file_id
@@ -37,17 +37,17 @@ class Mold
 
   private
 
-  def load_field_types
-    @field_types = {}
+  def load_formatters
+    @formatters = {}
 
     @fields.each do |field|
       name, type = *field
       klass = begin
-        "Tofu::Fields::#{type.camelize}".constantize
+        "Tofu::Formatters::#{type.camelize}".constantize
       rescue NameError
-        Tofu::Fields::String
+        Tofu::Formatters::String
       end
-      @field_types[name] = klass
+      @formatters[name] = klass
     end
   end
 end

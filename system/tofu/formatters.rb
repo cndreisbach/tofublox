@@ -1,17 +1,17 @@
 module Tofu
-  module Fields
+  module Formatters    
     class String
       def initialize(text)
         @text = text
       end
       
-      def to_s
+      def to_html
         @text
       end
     end
     
     class Text < String
-      def to_s
+      def to_html
         start_tag = "<p>"
         text = @text.to_s.dup
         text.gsub!(/\r\n?/, "\n")                    # \r\n and \r -> \n
@@ -21,5 +21,25 @@ module Tofu
         text << "</p>"
       end
     end
+    
+    MARKDOWNS = %w(Maruku RDiscount BlueCloth)
+    
+    def self.get_markdown_implementation(impls = MARKDOWNS)
+      if impls.empty?
+        Text
+      else
+        impl = impls.shift
+
+        begin
+          require impl.downcase
+          Kernel.const_get(impl)
+        rescue LoadError, NameError
+          get_markdown_implementation(impls)
+        end
+      end
+    end
+
+    Markdown = get_markdown_implementation
+    
   end
 end

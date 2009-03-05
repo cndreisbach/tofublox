@@ -2,7 +2,7 @@
 Fields:
 - Title: string
 - Teaser: text
-- Body: text
+- Body: markdown
 ---
 <div class="block post" id="post-#{id}">
   <h2 class="block-title">

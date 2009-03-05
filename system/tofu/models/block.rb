@@ -44,9 +44,9 @@ class Block < Sequel::Model
 
   def field(key)
     key = key.to_s
-    field_klass = mold.field_types[key]
+    formatter = mold.formatters[key]
     begin
-      field_klass.new(@values[:content][key]).to_s
+      formatter.new(@values[:content][key]).to_html
     rescue NameError
       @values[:content][key]
     end

@@ -7,7 +7,7 @@ require 'bacon' unless defined?(Bacon)
 
 Tofu.molds['TestMold'] = Mold.new('TestMold',
   [ ['Title', 'string'], ['Teaser', 'text'], ['Body', 'simple_text'],
-    ['StringField', 'string'], ['TextField', 'text']
+    ['StringField', 'string'], ['TextField', 'text'], ['MarkdownField', 'markdown']
   ], '#{f :Teaser}', '#{f :Body}')
 
 module SpecFactory
