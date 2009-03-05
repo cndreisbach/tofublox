@@ -42,13 +42,17 @@ class Block < Sequel::Model
     end
   end
 
+  def raw_field(key)
+    @values[:content][key.to_s]
+  end
+  
   def field(key)
     key = key.to_s
     formatter = mold.formatters[key]
     begin
-      formatter.new(@values[:content][key]).to_html
+      formatter.new(raw_field(key)).to_html
     rescue NameError
-      @values[:content][key]
+      raw_field(key)
     end
   end
 

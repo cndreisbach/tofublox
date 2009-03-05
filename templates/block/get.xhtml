@@ -5,7 +5,7 @@
   <% @block.mold.fields.each do |field, type| %>
     <div>
       <label for="block[#{field}]">#{field}</label>
-      #{form_field type, :name => "block[#{field}]", :value => @block.field(field)}
+      #{form_field type, :name => "block[#{field}]", :value => @block.raw_field(field)}
     </div>
   <% end %>
   <label for="block[author]">Author</label>
