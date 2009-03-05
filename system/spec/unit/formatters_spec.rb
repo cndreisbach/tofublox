@@ -43,3 +43,9 @@ EOF
   end
 end
 
+describe 'choosing a Markdown formatter' do
+  it "should default to text if no Markdown implementation found" do
+    Tofu::Formatters.get_markdown_implementation(['UnknownImplementation']).should == Tofu::Formatters::Text
+  end
+end
+
