@@ -6,6 +6,14 @@ class TofuController < Ramaze::Controller
     render_template('../layouts/site')
   end
 
+  def get
+    raise Tofu::Errors::MethodNotAllowed
+  end
+  
+  def post
+    raise Tofu::Errors::MethodNotAllowed
+  end
+
   private
 
   def load_block(permalink)

@@ -62,6 +62,7 @@ module Tofu
     class Unauthorized < Exception; end
     class BadRequest < Exception; end
     class NotFound < Exception; end
+    class MethodNotAllowed < Exception; end
   end  
 end
 

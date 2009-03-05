@@ -28,4 +28,5 @@ Ramaze::Dispatcher::Error::HANDLE_ERROR.merge!({
   Tofu::Errors::Unauthorized => [ Ramaze::STATUS_CODE['Unauthorized'], '/error/401' ],
   Tofu::Errors::BadRequest => [ Ramaze::STATUS_CODE['Bad Request'], '/error/400' ],
   Tofu::Errors::NotFound => [ Ramaze::STATUS_CODE['Not Found'], '/error/404' ],
+  Tofu::Errors::MethodNotAllowed => [ Ramaze::STATUS_CODE['Method Not Allowed'], '/error' ]
 })
