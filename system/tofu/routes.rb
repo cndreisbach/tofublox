@@ -1,5 +1,5 @@
 Ramaze::Route['Tofu routing'] = lambda do |path, request|
-  def self.get_request_method(request)
+  get_request_method = lambda do |request|
     method = if request.request_method == 'POST' and request.params.has_key?('method')
                request.params['method']
              else
@@ -8,7 +8,7 @@ Ramaze::Route['Tofu routing'] = lambda do |path, request|
     method.downcase
   end
 
-  method = self.get_request_method(request)
+  method = get_request_method[request]
   
   case path
   when '/admin' then "/blocks/get"

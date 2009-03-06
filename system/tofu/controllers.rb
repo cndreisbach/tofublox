@@ -6,14 +6,12 @@ class TofuController < Ramaze::Controller
     render_template('../layouts/site')
   end
 
-  def get
-    raise Tofu::Errors::MethodNotAllowed
+  %w(get post put delete).each do |action|
+    define_method(action) do
+      raise Tofu::Errors::MethodNotAllowed
+    end
   end
   
-  def post
-    raise Tofu::Errors::MethodNotAllowed
-  end
-
   private
 
   def load_block(permalink)

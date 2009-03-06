@@ -22,6 +22,10 @@ describe 'a Mold' do
       @mold.send(varname).should == instance_variable_get("@#{varname}")
     end
   end
+
+  it "doesn't need to be written back as an ActiveFile" do
+    lambda { @mold.to_activefile }.should.raise RuntimeError
+  end
 end
 
 describe 'Mold class' do
