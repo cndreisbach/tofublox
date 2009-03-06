@@ -15,7 +15,7 @@ task 'spec' do
 end
 
 Rcov::RcovTask.new do |t|
-  t.rcov_opts = ['-x spec.rb,spec_helper.rb']
+  t.rcov_opts = ['-x spec.rb,spec_helper.rb', '-T']
   t.pattern = "system/spec/**/*_spec.rb"
   t.verbose = true
 end

@@ -4,3 +4,6 @@
 [submodule "system/vendor/ramaze"]
 	path = system/vendor/ramaze
 	url = git://github.com/manveru/ramaze.git
+[submodule "system/vendor/bacon"]
+	path = system/vendor/bacon
+	url = git://github.com/chneukirchen/bacon.git
