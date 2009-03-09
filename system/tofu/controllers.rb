@@ -84,7 +84,6 @@ class BlocksController < AdminController
     block.author = request.params['block'].delete('author')
     block.published = (request.params['block'].delete('published') == 'true')
     block.update_content(request.params['block'])
-
     block.save
 
     redirect R(BlocksController)
@@ -106,8 +105,7 @@ class BlockController < AdminController
 
     @block.mold = params.delete('mold') if params['mold']
     @block.author = params.delete('author') if params['author']
-    @block.published = (request.params['block'].delete('published') == 'true')
-
+    @block.published = (params.delete('published') == 'true')
     @block.update_content(params)
     @block.save
     

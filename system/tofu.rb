@@ -42,6 +42,28 @@ module Tofu
       Ramaze::Global.view_root = dir('templates')
     end
 
+    def dump
+      File.open(dir('tofu.yaml'), 'w') do |file|
+        file.write Block.all_values.to_yaml
+      end
+    end
+
+    def load(yaml_file = dir('tofu.yaml'))
+      if File.exist?(yaml_file)
+        blocks = YAML::load(File.read(yaml_file))
+        unless blocks.blank?
+          Block.delete_all
+          blocks.each do |vals|
+            block = Block.new(vals)
+            block.save
+          end
+        end
+        p Block.all.inspect
+      else
+        raise "Could not load #{yaml_file}."
+      end
+    end
+
     private
 
     def load_molds

@@ -31,6 +31,10 @@ class Block < Sequel::Model
     self.altered_at = now
   end
 
+  def self.all_values
+    self.all.map { |b| b.values.reject { |k, v| k == :id } }
+  end
+
   def content=(new_content)
     raise ArgumentError, "Content must be a hash" unless new_content.is_a? Hash
     @values[:content] = new_content

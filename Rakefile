@@ -35,6 +35,19 @@ task 'flog' do
   system "flog #{system_files.join(' ')}"
 end
 
+desc "Dump database to yaml"
+task 'dump' do
+  require 'tofu'
+  Tofu.dump
+end
+
+desc "Load database from yaml"
+task 'load' do
+  require 'tofu'
+  Tofu.load
+end
+
+
 def system_files
   Dir['system/tofu.rb'] + Dir['system/tofu/**/*.rb']
 end

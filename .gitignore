@@ -6,3 +6,4 @@ data/blocks
 .ditz-config
 public/issues
 coverage
+tofu.yaml
