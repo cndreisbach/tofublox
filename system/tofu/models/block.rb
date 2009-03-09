@@ -31,20 +31,20 @@ class Block < Sequel::Model
     self.altered_at = now
   end
 
-  def content=(content)
-    raise ArgumentError, "Content must be a hash" unless content.is_a? Hash
-    @values[:content] = content
+  def content=(new_content)
+    raise ArgumentError, "Content must be a hash" unless new_content.is_a? Hash
+    @values[:content] = new_content
   end
 
-  def update_content(content)
-    raise ArgumentError, "Content must be a hash" unless content.is_a? Hash
-    content.each do |key, value|
+  def update_content(new_content)
+    raise ArgumentError, "Content must be a hash" unless new_content.is_a? Hash
+    new_content.each do |key, value|
       self.content[key] = value
     end
   end
 
   def raw_field(key)
-    @values[:content][key.to_s]
+    content[key.to_s]
   end
   
   def field(key)
@@ -60,8 +60,8 @@ class Block < Sequel::Model
   alias :f :field
 
   def title
-    key = %w(title Title).detect { |t| !@values[:content][t].nil? }
-    @values[:content][key]
+    key = %w(title Title).detect { |t| !content[t].nil? }
+    content[key]
   end
 
   def mold
@@ -98,11 +98,11 @@ class Block < Sequel::Model
   end
 
   def set_permalink
-    if self.permalink.nil? || self.permalink.empty?
-      if self.title
-        self.permalink = title.slugify[0..50]
+    if permalink.blank?
+      if title
+        permalink = title.slugify[0..50]
       else
-        self.permalink = Time.now.strftime("%Y%m%d%H%M")
+        permalink = Time.now.strftime("%Y%m%d%H%M")
       end
       self.permalink = make_unique(permalink)    
     end

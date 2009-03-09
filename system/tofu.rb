@@ -34,17 +34,12 @@ module Tofu
     end
 
     def setup
-      Ramaze::Global.view_root = dir('templates')
-
       require dir('config/tofu_config')
-
-      unless @db
-        @db = Sequel.sqlite((env == 'test') ? ':memory:' : @config.database)
-      end
-
+      load_db
       Ramaze.acquire dir('system/tofu/**/*')
       load_molds
       Block.create_table unless Block.table_exists?
+      Ramaze::Global.view_root = dir('templates')
     end
 
     private
@@ -56,6 +51,12 @@ module Tofu
         @molds[mold.name] = mold
       end
     end
+    
+    def load_db
+      unless @db
+        @db = Sequel.sqlite((env == 'test') ? ':memory:' : @config.database)
+      end
+    end
   end
  
   module Errors
@@ -64,28 +65,6 @@ module Tofu
     class NotFound < Exception; end
     class MethodNotAllowed < Exception; end
   end  
-end
-
-class String
-  def slugify
-    self.strip.downcase.gsub(/[^-a-z0-9~\s\.:;+=_]/, '').gsub(/[\s\.:;=+]+/, '-')
-  end
-  
-  def camelize
-    str = self.clone
-    str.gsub(/\/(.?)/) { "::#{$1.upcase}" }.gsub(/(?:^|_)(.)/) { $1.upcase }
-  end
-  
-  def constantize
-    names = self.split('::')
-    names.shift if names.empty? || names.first.empty?
-
-    constant = Object
-    names.each do |name|
-      constant = constant.const_defined?(name) ? constant.const_get(name) : constant.const_missing(name)
-    end
-    constant
-  end
 end
 
 Tofu.setup
