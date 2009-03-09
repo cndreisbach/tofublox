@@ -88,8 +88,8 @@ class Block < Sequel::Model
     end
   end
 
-  alias_method :to_s, :body
-  alias_method :to_str, :body
+  alias :to_s :body
+  alias :to_str :body
 
   private
 
