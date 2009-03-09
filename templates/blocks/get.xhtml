@@ -6,6 +6,7 @@
     <th>Mold</th>
     <th>Created at</th>
     <th>Updated at</th>
+    <th>Published?</th>
   </tr>
   <?r @blocks.each do |block| ?>
   <tr>
@@ -15,6 +16,7 @@
     <td>#{block.mold.name}</td>
     <td>#{block.created_at.strftime("%m/%d %H:%M")}</td>
     <td>#{block.altered_at.strftime("%m/%d %H:%M")}</td>
+    <td>#{block.published?.to_s}</td>
   </tr>
   <?r end ?>
 </table>

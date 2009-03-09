@@ -7,6 +7,7 @@ class Block < Sequel::Model
     text :content
     timestamp :created_at
     timestamp :altered_at
+    timestamp :published_at
   end
 
   validates do
@@ -55,13 +56,13 @@ class Block < Sequel::Model
       raw_field(key)
     end
   end
+  
+  alias :f :field
 
   def title
     key = %w(title Title).detect { |t| !@values[:content][t].nil? }
     @values[:content][key]
   end
-
-  alias f field
 
   def mold
     Tofu.molds[@values[:mold]]
@@ -73,6 +74,18 @@ class Block < Sequel::Model
 
   def body
     Ezamar::Template.new(self.mold.body, :file => mold.send(:filename) ).result(binding)
+  end
+  
+  def published?
+    !self.published_at.nil?
+  end
+  
+  def published=(bool)
+    if bool and !published?
+      self.published_at = Time.now
+    elsif !bool
+      self.published_at = nil
+    end
   end
 
   alias_method :to_s, :body
@@ -91,20 +104,19 @@ class Block < Sequel::Model
       else
         self.permalink = Time.now.strftime("%Y%m%d%H%M")
       end
+      self.permalink = make_unique(permalink)    
+    end
+  end
+  
+  def make_unique(permalink)
+    block = Block[:permalink => permalink]
 
-      make_unique = lambda do |permalink|
-        block = Block[:permalink => permalink]
-
-        if block.nil? or block.id == self.id
-          permalink
-        else
-          permalink.gsub(/\-\d\d+$/, '')
-          permalink += "-#{Time.now.strftime("%S")}"
-          make_unique.call(permalink)
-        end
-      end
-
-      self.permalink = make_unique.call(permalink)    
+    if block.nil? or block.id == self.id
+      permalink
+    else
+      permalink.gsub(/\-\d\d+$/, '')
+      permalink += "-#{Time.now.strftime("%S")}"
+      make_unique(permalink)
     end
   end
 end

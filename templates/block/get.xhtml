@@ -2,13 +2,6 @@
 
 <form action="#{R(BlockController, @block.permalink)}" method="POST">
   <input type="hidden" name="method" value="PUT" />
-  <% @block.mold.fields.each do |field, type| %>
-    <div>
-      <label for="block[#{field}]">#{field}</label>
-      #{form_field type, :name => "block[#{field}]", :value => @block.raw_field(field)}
-    </div>
-  <% end %>
-  <label for="block[author]">Author</label>
-  <input name="block[author]" type="text" value="#{@block.author}" />
+  #{render_template('../mold/_form.xhtml', {:mold => @block.mold, :block => @block})}
   <input type="submit" value="Update block" />
 </form>

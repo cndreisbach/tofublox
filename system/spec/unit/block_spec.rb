@@ -137,6 +137,17 @@ describe 'a Block' do
     @block.field(:Title).should == 'Updated!'
   end
   
+  it "should be able to be published and unpublished" do
+    now = Time.now
+    Time.stubs(:now).at_least_once.returns(now)
+    
+    @block.published = false
+    @block.should.not.be.published
+    @block.published = true
+    @block.should.be.published
+    @block.published_at.should == now
+  end
+  
 end
 
   

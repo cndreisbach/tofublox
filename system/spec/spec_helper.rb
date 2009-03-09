@@ -20,6 +20,7 @@ module SpecFactory
       :mold => 'TestMold',
       :author => 'Powerfist',
       :content => { 'Title' => 'test', 'Body' => 'test' },
+      :published => true
     }
     Block.new(default_options.merge(options))
   end

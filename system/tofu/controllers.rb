@@ -25,7 +25,7 @@ class IndexController < TofuController
   helper :formatting
   
   def get
-    @blocks = Block.order(:created_at.desc)
+    @blocks = Block.where('published_at IS NOT NULL').order(:published_at.desc)
   end
 end
 
@@ -67,6 +67,7 @@ class MoldController < AdminController
 
   def get(id)
     @mold = Mold.find(id)
+    @block = Block.new(:mold => @mold)
   end
 end
 
@@ -74,13 +75,14 @@ class BlocksController < AdminController
   map '/blocks'
 
   def get
-    @blocks = Block.order(:created_at.desc)
+    @blocks = Block.order(:altered_at.desc)
   end
 
   def post
     block = Block.new
     block.mold = request.params['block'].delete('mold')
     block.author = request.params['block'].delete('author')
+    block.published = (request.params['block'].delete('published') == 'true')
     block.update_content(request.params['block'])
 
     block.save
@@ -104,6 +106,7 @@ class BlockController < AdminController
 
     @block.mold = params.delete('mold') if params['mold']
     @block.author = params.delete('author') if params['author']
+    @block.published = (request.params['block'].delete('published') == 'true')
 
     @block.update_content(params)
     @block.save

@@ -1,0 +1,17 @@
+<% @mold.fields.each do |field, type| %>
+  <div>
+    <label for="block[#{field}]">#{field}</label>
+    #{form_field type, :name => "block[#{field}]", :value => @block.raw_field(field)}
+  </div>
+<% end %>
+<div>
+  <label for="block[author]">Author</label>
+  <input name="block[author]" type="text" value="#{@block.author || request.env['REMOTE_USER']}" />
+</div>
+<div>
+  <label for="block[published]">Status</label>
+  <select name="block[published]">
+    <option value="false">Draft</option>
+    <option value="true" #{'selected="selected"' if @block.published?}>Published</option>
+  </select>
+</div>
