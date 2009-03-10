@@ -31,23 +31,12 @@ end
 
 desc "Remove coverage output"
 task 'clobber_rcov' do
-  require 'tofu'
-  system "rm -rf #{Tofu.dir('coverage')}"
+  system "rm -rf #{TOFU_DIR}/../coverage"
 end
 
 desc "Run reek"
 task 'reek' do
   system "reek #{system_files.join(' ')}"
-end
-
-desc "Run roodi"
-task 'roodi' do
-  system "roodi #{system_files.join(' ')}"
-end
-
-desc "Run flog"
-task 'flog' do
-  system "flog #{system_files.join(' ')}"
 end
 
 desc "Dump database to yaml"
