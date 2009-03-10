@@ -38,13 +38,13 @@ end
 desc "Dump database to yaml"
 task 'dump' do
   require 'tofu'
-  Tofu.dump_to_file
+  Tofu.dump_to_file(ENV['TOFU_YAML'])
 end
 
 desc "Load database from yaml"
 task 'load' do
   require 'tofu'
-  Tofu.load_from_file
+  Tofu.load_from_file(ENV['TOFU_YAML'])
 end
 
 def system_files
