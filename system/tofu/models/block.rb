@@ -85,11 +85,11 @@ class Block < Sequel::Model
   end
 
   def summary
-    Ezamar::Template.new(self.mold.summary, :file => mold.send(:filename) ).result(binding)
+    render_template(:summary)
   end
 
   def body
-    Ezamar::Template.new(self.mold.body, :file => mold.send(:filename) ).result(binding)
+    render_template(:body)
   end
   
   def published?
@@ -108,6 +108,11 @@ class Block < Sequel::Model
   alias :to_str :body
 
   private
+
+  def render_template(template)
+    Ezamar::Template.new(self.mold.send(template),
+                         :file => mold.send(:filename) ).result(binding)
+  end
 
   def setup_content
     self.content = Hash.new unless self.content.is_a? Hash
