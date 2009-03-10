@@ -7,22 +7,20 @@
   end
 end
 
-%w(ramaze sequel active_files).each do |requirement|
+%w(ramaze sequel active_files ostruct).each do |requirement|
   require requirement
 end
 
 module Tofu
   DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)
-  @config = Struct.new(:title,
-                       :database, 
-                       :admin_password).new
+  @config = OpenStruct.new
   @molds = { }
 
   class << self    
     attr_reader :molds, :config, :db
 
     def dir(subdir = '')
-      File.join(DIR, subdir)
+      File.expand_path(File.join(DIR, subdir))
     end
 
     def env
@@ -42,13 +40,14 @@ module Tofu
       Ramaze::Global.view_root = dir('templates')
     end
 
-    def dump
+    def dump_to_file
       File.open(dir('tofu.yaml'), 'w') do |file|
         file.write Block.all_values.to_yaml
       end
+      puts "Dumped #{Block.all.count} blocks to #{dir('tofu.yaml')}."
     end
 
-    def load(yaml_file = dir('tofu.yaml'))
+    def load_from_file(yaml_file = dir('tofu.yaml'))
       if File.exist?(yaml_file)
         blocks = YAML::load(File.read(yaml_file))
         unless blocks.blank?
@@ -57,8 +56,9 @@ module Tofu
             block = Block.new(vals)
             block.save
           end
+          
+          puts "Loaded #{blocks.count} blocks from #{yaml_file}."
         end
-        p Block.all.inspect
       else
         raise "Could not load #{yaml_file}."
       end

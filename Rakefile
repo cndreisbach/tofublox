@@ -5,10 +5,10 @@ task :default => :spec
 
 TOFU_DIR = File.dirname(__FILE__) + '/system'
 $:.push TOFU_DIR
-require "#{TOFU_DIR}/vendor/ramaze/spec/helper"
 
 desc 'Run all specs'
 task 'spec' do
+  require "#{TOFU_DIR}/vendor/ramaze/spec/helper"
   files = Dir["system/spec/**/*_spec.rb"]
   Bacon.summary_on_exit
   files.each { |file| load file }
@@ -38,15 +38,14 @@ end
 desc "Dump database to yaml"
 task 'dump' do
   require 'tofu'
-  Tofu.dump
+  Tofu.dump_to_file
 end
 
 desc "Load database from yaml"
 task 'load' do
   require 'tofu'
-  Tofu.load
+  Tofu.load_from_file
 end
-
 
 def system_files
   Dir['system/tofu.rb'] + Dir['system/tofu/**/*.rb']
