@@ -14,10 +14,12 @@ module Tofu::Auth
     raise Tofu::Errors::BadRequest
   end
   
-  def authorized?
+  def current_user
     request.env['REMOTE_USER']
   end
-  
+
+  alias :authorized? :current_user
+
   def authorize(username, password)
     password == Tofu.config.admin_password
   end

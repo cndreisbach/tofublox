@@ -40,14 +40,16 @@ module Tofu
       Ramaze::Global.view_root = dir('templates')
     end
 
-    def dump_to_file
-      File.open(dir('tofu.yaml'), 'w') do |file|
+    def dump_to_file(yaml_file = nil)
+      yaml_file ||= dir('tofu.yaml')
+      File.open(yaml_file, 'w') do |file|
         file.write Block.all_values.to_yaml
       end
-      puts "Dumped #{Block.all.count} blocks to #{dir('tofu.yaml')}."
+      puts "Dumped #{Block.all.count} blocks to #{yaml_file}."
     end
 
-    def load_from_file(yaml_file = dir('tofu.yaml'))
+    def load_from_file(yaml_file = nil)
+      yaml_file ||= dir('tofu.yaml')
       if File.exist?(yaml_file)
         blocks = YAML::load(File.read(yaml_file))
         unless blocks.blank?

@@ -51,6 +51,14 @@ class Block < Sequel::Model
     end
   end
 
+  def update_from_params(params)
+    self.mold = params.delete('mold') if params['mold']
+    self.author = params.delete('author') if params['author']
+    self.published = (params.delete('published') == 'true')
+    update_content(params)
+    save
+  end
+
   def raw_field(key)
     content[key.to_s]
   end
@@ -77,11 +85,11 @@ class Block < Sequel::Model
   end
 
   def summary
-    Ezamar::Template.new(self.mold.summary, :file => mold.send(:filename) ).result(binding)
+    render_template(:summary)
   end
 
   def body
-    Ezamar::Template.new(self.mold.body, :file => mold.send(:filename) ).result(binding)
+    render_template(:body)
   end
   
   def published?
@@ -100,6 +108,11 @@ class Block < Sequel::Model
   alias :to_str :body
 
   private
+
+  def render_template(template)
+    Ezamar::Template.new(self.mold.send(template),
+                         :file => mold.send(:filename) ).result(binding)
+  end
 
   def setup_content
     self.content = Hash.new unless self.content.is_a? Hash

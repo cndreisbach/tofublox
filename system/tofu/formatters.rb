@@ -39,7 +39,6 @@ module Tofu
       end
     end
 
-    Markdown = get_markdown_implementation
-    
+    Markdown = get_markdown_implementation    
   end
 end
