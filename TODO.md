@@ -2,7 +2,6 @@
 
 For release, these things are left to do:
 
-* allow logout
 * DISQUS integration
 * add space in admin tables
 * better docs

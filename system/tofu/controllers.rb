@@ -51,6 +51,17 @@ class AdminController < TofuController
   end
 end
 
+class LogoutController < TofuController
+  map '/logout'
+
+  include Tofu::Auth
+  
+  def get(old_username)
+    unauthorized! if auth.username == old_username
+    require_login
+    redirect R(BlocksController)
+  end
+end
 
 class MoldsController < AdminController
   map '/molds'
