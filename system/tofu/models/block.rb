@@ -1,4 +1,8 @@
 class Block < Sequel::Model
+  Block.plugin(:schema)
+  Block.plugin(:validation_class_methods)
+  Block.plugin(:hook_class_methods)
+  
   set_schema do
     primary_key :id
     string :permalink

@@ -13,7 +13,7 @@ describe 'Blocks Controller' do
       block.should.be.kind_of Block
     end
 
-    Block.delete_all
+    Block.delete
   end
 
   it "should create a new block on post" do

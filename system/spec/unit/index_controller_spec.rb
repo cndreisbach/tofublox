@@ -9,26 +9,26 @@ describe 'Index Controller' do
     
     @controller.get
     @controller.assigns(:blocks).should.be.kind_of Sequel::Dataset
-    @controller.assigns(:blocks).size.should > 0
+    @controller.assigns(:blocks).count.should > 0
     @controller.assigns(:blocks).each do |block|
       block.should.be.kind_of Block
     end
 
-    Block.delete_all
+    Block.delete
   end
   
   it "should only get published blocks" do
     block = create_block(:published => false)
     
     @controller.get
-    @controller.assigns(:blocks).size.should == 0
+    @controller.assigns(:blocks).count.should == 0
     
     block.published = true
     block.save
     
     @controller.get
-    @controller.assigns(:blocks).size.should == 1
+    @controller.assigns(:blocks).count.should == 1
   
-    Block.delete_all    
+    Block.delete    
   end
 end

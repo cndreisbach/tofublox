@@ -22,7 +22,7 @@ describe 'a Block' do
   end
 
   after do
-    Block.delete_all
+    Block.delete
   end
 
   it "should retrieve content via field" do

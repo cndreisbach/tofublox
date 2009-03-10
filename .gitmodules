@@ -7,3 +7,6 @@
 [submodule "system/vendor/bacon"]
 	path = system/vendor/bacon
 	url = git://github.com/chneukirchen/bacon.git
+[submodule "system/vendor/sequel"]
+	path = system/vendor/sequel
+	url = git://github.com/jeremyevans/sequel.git
