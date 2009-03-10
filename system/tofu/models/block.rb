@@ -51,6 +51,14 @@ class Block < Sequel::Model
     end
   end
 
+  def update_from_params(params)
+    self.mold = params.delete('mold') if params['mold']
+    self.author = params.delete('author') if params['author']
+    self.published = (params.delete('published') == 'true')
+    update_content(params)
+    save
+  end
+
   def raw_field(key)
     content[key.to_s]
   end

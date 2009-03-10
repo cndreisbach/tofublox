@@ -91,12 +91,7 @@ class BlocksController < AdminController
 
   def post
     block = Block.new
-    block.mold = request.params['block'].delete('mold')
-    block.author = request.params['block'].delete('author')
-    block.published = (request.params['block'].delete('published') == 'true')
-    block.update_content(request.params['block'])
-    block.save
-
+    block.update_from_params(request.params['block'])
     redirect R(BlocksController)
   end
 end
@@ -113,13 +108,7 @@ class BlockController < AdminController
   def put(permalink)
     load_block(permalink)
     params = request.params['block'].dup
-
-    @block.mold = params.delete('mold') if params['mold']
-    @block.author = params.delete('author') if params['author']
-    @block.published = (params.delete('published') == 'true')
-    @block.update_content(params)
-    @block.save
-    
+    @block.update_from_params(params)
     redirect R(BlocksController)
   end
 
