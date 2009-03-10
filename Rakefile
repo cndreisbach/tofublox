@@ -1,9 +1,8 @@
 require 'rake'
-require 'rcov/rcovtask'
 
 task :default => :spec
 
-TOFU_DIR = File.dirname(__FILE__) + '/system'
+TOFU_DIR = File.expand_path(File.dirname(__FILE__) + '/system')
 $:.push TOFU_DIR
 
 desc 'Run all specs'
@@ -14,10 +13,26 @@ task 'spec' do
   files.each { |file| load file }
 end
 
-Rcov::RcovTask.new do |t|
-  t.rcov_opts = ['-x spec.rb,spec_helper.rb', '-T', '--only-uncovered']
-  t.pattern = "system/spec/**/*_spec.rb"
-  t.verbose = true
+desc "Analyze code coverage"
+task 'rcov' do
+  begin
+    require 'rcov/rcovtask'
+    Rcov::RcovTask.new(:_rcov) do |t|
+      t.rcov_opts = ['-x spec.rb,spec_helper.rb', '-T', '--only-uncovered']
+      t.pattern = "system/spec/**/*_spec.rb"
+      t.verbose = true
+    end
+    Rake::Task['_rcov'].invoke
+  rescue LoadError
+    puts "You do not have rcov installed. " +
+      "You can install it with the command 'gem install rcov'."
+  end
+end
+
+desc "Remove coverage output"
+task 'clobber_rcov' do
+  require 'tofu'
+  system "rm -rf #{Tofu.dir('coverage')}"
 end
 
 desc "Run reek"
