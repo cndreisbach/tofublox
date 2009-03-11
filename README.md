@@ -1,7 +1,7 @@
 TofuBlox
 ========
 
-It's a tumbleblogemess. It's a Ramaze app. It scratches an itch for me.
+It's a tumbleblogemess. It's a [Ramaze](http://ramaze.net) app. It scratches an itch for me.
 
 TofuBlox is to a CMS as tofu is to chicken: more fun, and better for you and the chicken.
 
