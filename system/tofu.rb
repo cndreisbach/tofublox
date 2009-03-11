@@ -7,13 +7,13 @@
   end
 end
 
-%w(ramaze sequel active_files ostruct).each do |requirement|
+%w(ramaze sequel active_files ostruct sequel/extensions/pagination).each do |requirement|
   require requirement
 end
 
 module Tofu
   DIR = File.join(File.dirname(__FILE__), '..') unless defined?(DIR)
-  @config = OpenStruct.new
+  @config = OpenStruct.new  
   @molds = { }
 
   class << self    

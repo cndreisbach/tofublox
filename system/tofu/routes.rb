@@ -19,6 +19,7 @@ Ramaze::Route['Tofu routing'] = lambda do |path, request|
   when '/blocks' then "/blocks/#{method}"
   when %r{/block/([\w\-]+)} then "/block/#{method}/#{$1}"
   when '/' then "/index/#{method}"
+  when %r{/index/(\d+)} then "/index/#{method}/#{$1}"
   when %r{/view/([\w\-]+)} then "/view/#{method}/#{$1}"
   when %r{/logout/([\w\-]+)} then "/logout/#{method}/#{$1}"
   else "/error/404"

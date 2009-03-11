@@ -1,5 +1,9 @@
-<?r @blocks.each do |block| ?>
+<?r @pager.each do |block| ?>
   <div class="block #{block.mold.name}">
     #{block.summary}
   </div>
+<?r end ?>
+
+<?r if @pager.needed? ?>
+  #{@pager.navigation}
 <?r end ?>

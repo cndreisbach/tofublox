@@ -23,9 +23,16 @@ end
 class IndexController < TofuController
   map '/index'
   helper :formatting
+  helper :paginate
   
-  def get
-    @blocks = Block.where('published_at IS NOT NULL').order(:published_at.desc)
+  trait :paginate => {
+          :limit => Tofu.config.blocks_per_page || 1,
+          :var => 'page'
+        }
+  
+  def get(page = 1)
+    blocks = Block.where('published_at IS NOT NULL').order(:published_at.desc)
+    @pager = paginate(blocks, :page => page.to_i)
   end
 end
 

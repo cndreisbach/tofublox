@@ -9,5 +9,17 @@ module Ramaze
         end
       end
     end
+
+    module Paginate
+      class Paginator
+        private
+        
+        def link(n, text = n, hash = {})
+          text = h(text.to_s)
+          hash[:href] = R(Ramaze::Controller.current, n)
+          g.a(hash){ text }
+        end
+      end
+    end
   end
 end

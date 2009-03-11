@@ -2,4 +2,9 @@
 
 For release, these things are left to do:
 
-* DISQUS integration (?)
+* CSS refresh of default templates
+
+For future:
+
+* Clean up terrible pagination links
+* DISQUS integration
