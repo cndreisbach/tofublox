@@ -1,7 +1,7 @@
 Tofu.configure do |config|
   
    # Your site title
-  config.title = "TofuBlox"
+  config.title = "Your TofuBlox Site"
   
   # The password to get into your admin backend
   config.admin_password = 'lombardo' 

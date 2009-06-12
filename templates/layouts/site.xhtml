@@ -6,8 +6,16 @@
     <link rel="stylesheet" media="screen" type="text/css" href="/css/site.css" />
   </head>
   <body>
-    <div class="hfeed" id="blocks">
-      #{@content}
+    <div id="doc">
+      <div id="hd">
+        <h1>#{Tofu.config.title}</h1>
+      </div>
+      <div id="bd">
+        <div id="blocks">
+          #{@content}
+        </div>
+      </div>
+      <div id="ft"></ft>
     </div>
   </body>
 </html>

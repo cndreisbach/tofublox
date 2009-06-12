@@ -1,9 +1,17 @@
-<?r @pager.each do |block| ?>
-  <div class="block #{block.mold.name}">
-    #{block.summary}
-  </div>
-<?r end ?>
+<?r if @pager.empty? ?>
+  <p>
+    It looks like you don't have any blocks made.
+    You should go to <a href="#{R(BlocksController)}">the admin page</a>
+    and set some up.
+  </p>
+<?r else ?>
+  <?r @pager.each do |block| ?>
+    <div class="block #{block.mold.name}">
+      #{block.summary}
+    </div>
+  <?r end ?>
 
-<?r if @pager.needed? ?>
-  #{@pager.navigation}
+  <?r if @pager.needed? ?>
+    #{@pager.navigation}
+  <?r end ?>
 <?r end ?>

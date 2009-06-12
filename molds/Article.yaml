@@ -4,7 +4,7 @@ Fields:
 - Teaser: text
 - Body: markdown
 ---
-<div class="block post" id="post-#{id}">
+<div class="block article" id="article-#{id}">
   <h2 class="block-title">
     <a href="/view/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
   </h2>
@@ -16,12 +16,12 @@ Fields:
     #{f('Teaser')}
 
     <?r unless f('Body').blank? ?>
-      <p><a href="/view/#{permalink}">Read the rest of the article...</p>
+      <p><a href="/view/#{permalink}">Read the rest of the article...</a></p>
     <?r end ?>
   </div>
 </div>
 ---
-<div class="block post" id="post-#{id}">
+<div class="block article" id="article-#{id}">
   <h2 class="block-title">
     <a href="/view/#{permalink}" rel="bookmark" title="#{f 'Title'}">#{f 'Title'}</a>
   </h2>
@@ -30,7 +30,7 @@ Fields:
     <span class="attribution">by #{author}</span>
   </div>
   <div class="block-content">
-    <div style='font-style: italic;'>
+    <div style="font-style: italic;">
       #{f 'Teaser'}
     </div>
     
