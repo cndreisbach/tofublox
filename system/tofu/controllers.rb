@@ -31,8 +31,8 @@ class IndexController < TofuController
         }
   
   def get(page = 1)
-    blocks = Block.where('published_at IS NOT NULL').order(:published_at.desc)
-    @pager = paginate(blocks, :page => page.to_i)
+    @blocks = Block.where('published_at IS NOT NULL').order(:published_at.desc)
+    @pager = paginate(@blocks, :page => page.to_i)
   end
 end
 
