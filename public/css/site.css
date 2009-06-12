@@ -1,5 +1,32 @@
 body {
-    font-family: Times, "Times New Roman", serif;
-    width: 640px;
-    margin: 2em auto;
+  font-family: Helvetica, "Helvetica Neue", sans-serif;
+  font-size: 100%;
+  word-spacing: -0.05em;
+  margin: 0;
+  padding: 0;
+  background-color: #FA6900;
+  border: 10px solid #FA6900;
+}
+
+#doc {
+  width: 640px;
+  margin: 0 auto;
+  padding: 1em;
+  border: 1em solid #F38630;
+  background-color: #FFFFFF;
+}
+
+h1, h2 {
+  font-family: Times, "Times New Roman", serif;
+  word-spacing: -0.1em;
+}
+
+h1 {
+  font-size: 250%;
+}
+
+h2 {
+  font-size: 150%;
+  padding: 0.2em;
+  background-color: #A7DBD8;
 }
